@@ -21,7 +21,7 @@
 #include <time.h>
 
 void set_cursor_pos(_ssize_t col, _ssize_t row) {
-	printf("\x1B[%lld;%lldH", col, row);
+	printf("\x1B[%ld;%ldH", col, row);
 }
 
 void get_terminal_size(_ssize_t* columns, _ssize_t* rows) {
@@ -45,12 +45,24 @@ void change_title(const char* title) {
 	printf("\x1B]0;%s\007", title);
 }
 
+uint64 emulator_read_tsc() {
+	uint32 lo = 0, hi = 0;
+	
+	asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
+
+	uint64 result = ((uint64)hi << 32) | ((uint64)lo);
+
+	return result;
+}
+
 #ifdef IS_UNIX
 #include <fcntl.h>
 
 #include <termios.h>
 
 void switch_to_default(struct termios* orig_termios) {
+	if (!orig_termios) return;
+	
 	tcsetattr(STDIN_FILENO, TCSAFLUSH, orig_termios);
 }
 

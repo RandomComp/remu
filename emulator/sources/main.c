@@ -7,13 +7,11 @@
 #include <stdlib.h>
 
 #ifdef IS_UNIX
-#include <signal.h>
-
 #include <unistd.h>
 
 #include <fcntl.h>
 
-#include <sys/ioctl.h>
+#include <sys/time.h>
 #endif
 
 #include <time.h>
@@ -34,20 +32,17 @@
 
 #include "time/emulator_cmos.h"
 
+#include "hid/emulator_kbdps2.h"
+
+#include "power/emulator_power_control.h"
+
 #include "utils.h"
-
-#define INPUT_BUFFER_MAX_SIZE 128
-
-size_t 	screen_width = 0, 
-		screen_height = 0;
 
 #define frametime_ns 1000 * 1000 * 20
 
 #define halted_frametime_ns 1000 * 1000 * 200
 
-byte input_buffer[INPUT_BUFFER_MAX_SIZE] = { 0 };
-
-_size_t input_buffer_offset = 0;
+#define EMULATOR_VERSION_STR "beta 0.0.5 (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " " PLATFORM_ARCH
 
 cpu_t* cpu = nullptr;
 
@@ -55,89 +50,30 @@ vga_text_screen_t* vga = nullptr;
 
 cmos_t* cmos = nullptr;
 
+kbdps2_t* kbdps2 = nullptr;
+
 struct termios* orig_termios;
 
 // TODO: Сделать двойной буфер видеопамяти
 
 // TODO: Сделать таблицу прерываний и их настройку
 
-static void handle_keys();
-
-static void update();
-
-static void timer_handler(int sig);
-
 static handler_port_in_t table_port_in[65536] = { 0 };
 
 static handler_port_out_t table_port_out[65536] = { 0 };
 
-static tick_timer_t* tick_timers = nullptr; static size_t tick_timers_cnt = 0;
+#define TICK_TIMERS_SIZE_STEP 4
+
+static tick_timer_t* tick_timers = nullptr;
+static size_t tick_timers_cnt = 0; static size_t tick_timers_size = 0;
 
 static time_t ticks = 0;
 
-static size_t input_buffer_pos = 0;
+FILE* log_file = nullptr;
 
-static bool keyboard_reading_locked = false;
+uint64 emulator_start_time = 0;
 
-static _size_t keyboard_data_port_handler() {
-	//while (keyboard_reading_locked);
-
-	keyboard_reading_locked = true;
-
-	_size_t result = input_buffer[input_buffer_pos];
-
-	if (result) {
-		input_buffer_pos = (input_buffer_pos + 1) % INPUT_BUFFER_MAX_SIZE;
-	}
-
-	keyboard_reading_locked = false;
-
-	return result;
-}
-
-static _size_t keyboard_command_port_handler() {
-	return 1;
-}
-
-static void init_default_table_port_in() {
-	table_port_in[0x60] = &keyboard_data_port_handler;
-
-	table_port_in[0x64] = &keyboard_command_port_handler;
-}
-
-static void old_qemu_bochs_shutdown(_size_t value) {
-	if (value != 0x2000) return;
-
-	exit_emulator(0);
-}
-
-static void modern_qemu_power_command(_size_t value) {
-	// if (value != 0x2000) return;
-
-	exit_emulator(0);
-}
-
-static void virtual_box_acpi_pm1a_cnt_command(_size_t value) {
-	if (value != 0x3400) return;
-
-	exit_emulator(0);
-}
-
-static void cloud_hypervisor_power_command(_size_t value) {
-	if (value != 0x34) return;
-
-	exit_emulator(0);
-}
-
-static void init_default_table_port_out() {
-	table_port_out[0xB004] = &old_qemu_bochs_shutdown;
-
-	table_port_out[0x604] = &modern_qemu_power_command;
-
-	table_port_out[0x4004] = &virtual_box_acpi_pm1a_cnt_command;
-
-	table_port_out[0x600] = &cloud_hypervisor_power_command;
-}
+static void update_all();
 
 _size_t port_in(uint16 port) {
 	handler_port_in_t result = table_port_in[port];
@@ -164,79 +100,131 @@ void setup_port_out(uint16 port, handler_port_out_t handler) {
 }
 
 void setup_tick_timer(tick_timer_handler_t handler, _time_t ms) {
-	tick_timers = realloc(tick_timers, (tick_timers_cnt + 1) * sizeof(tick_timer_t));
+	if (tick_timers_cnt >= tick_timers_size) {
+		tick_timers_size += TICK_TIMERS_SIZE_STEP;
 
-	tick_timers[tick_timers_cnt] = (tick_timer_t){ .handler = handler, .ms = ms };
+		tick_timers = realloc(tick_timers, tick_timers_size * sizeof(tick_timer_t));
+ 	}
+
+	if (tick_timers) {
+		tick_timers[tick_timers_cnt] = (tick_timer_t){ 
+			.handler = handler, .ms = ms, .last_time = ticks
+		};
+	}
 
 	tick_timers_cnt += 1;
 }
 
-static void handle_keys() {
-	// while (keyboard_reading_locked);
-
-	keyboard_reading_locked = true;
-
-	char c = '\0';
-
-	ssize_t read_num = read(STDIN_FILENO, &c, 1);
-
-	if (read_num == 0 || c == 0x3) {
-		exit_emulator(0);
-
-		return;
-	}
-	
-	if (c != '\0') {
-		clear_halt(cpu);
-
-		input_buffer[input_buffer_offset] = c;
-
-		input_buffer_offset = (input_buffer_offset + 1) % INPUT_BUFFER_MAX_SIZE;
-	}
-	
-	input_buffer[(input_buffer_offset + 1) % INPUT_BUFFER_MAX_SIZE] = 0;
-
-	keyboard_reading_locked = false;
+void release_port_in(uint16 port) {
+	table_port_in[port] = nullptr;
 }
 
-static void update() {
-	draw_vga_text_screen(vga);
-
-	handle_keys();
+void release_port_out(uint16 port) {
+	table_port_out[port] = nullptr;
 }
 
-static void timer_handler(int sig) {
+void release_tick_timer(tick_timer_handler_t handler) {
+	_ssize_t index = -1;
+
+	for (_size_t i = 0; i < tick_timers_cnt; i++) {
+		if (tick_timers[i].handler == handler) {
+			index = i; break;
+		}
+	}
+
+	if (index) {
+		tick_timers[index] = (tick_timer_t){ 0 };
+	}
+}
+
+static void forced_update_all_timers() {
 	if (tick_timers) {
 		for (size_t i = 0; i < tick_timers_cnt; i++) {
 			tick_timer_t* tick_timer = &tick_timers[i];
 
-			if (tick_timer && (ticks % tick_timer->ms) == 0) {
+			if (!tick_timer) continue;
+
+			tick_timer->handler();
+		}
+	}
+}
+
+static void update_all() {
+	if (tick_timers) {
+		for (size_t i = 0; i < tick_timers_cnt; i++) {
+			tick_timer_t* tick_timer = &tick_timers[i];
+
+			if (!tick_timer) continue;
+
+			_time_t dur = ticks - tick_timer->last_time;
+
+			if (dur >= tick_timer->ms) {
 				tick_timer->handler();
+				
+				tick_timer->last_time = ticks;
 			}
 		}
 	}
 
-	update();
+	ticks += (time_t)(get_itval_ns(cpu) / 1000000);
+}
 
-	ticks += (time_t)((uint64)get_itval_ns(cpu) / 1000000);
+static void timer_handler(int sig) {
+	update_all();
 }
 
 void exit_emulator(int code) {
-	if (cpu) {
-		clear_halt(cpu);
+	forced_update_all_timers();
 
-		free_cpu(cpu); cpu = null;
-	}
+	printf("\n\r");
 
-	if (vga) {
-		free_vga_text_screen(vga); vga = null;
+	uint64 start_cpu_tsc = emulator_read_tsc();
+	
+	struct timespec ts;
+
+	timespec_get(&ts, TIME_UTC);
+
+	uint64 working_time = ((ts.tv_nsec / 1000000) + (ts.tv_sec * 1000)) - emulator_start_time;
+
+	if (kbdps2) {
+		free_kbdps2(kbdps2); kbdps2 = null;
+
+		release_all_kbdps2();
 	}
 
 	if (cmos) {
 		free_cmos(cmos); cmos = null;
+
+		release_all_cmos();
+	}
+	
+	if (vga) {
+		free_vga_text_screen(vga); vga = null;
+	}
+	
+	if (cpu) {
+		start_cpu_tsc = cpu->tsc_start;
+
+		clear_halt(cpu);
+
+		release_cpu(cpu); cpu = null;
 	}
 
+	release_power_control();
+
 	printf(visible_cursor);
+
+	uint64 working_cpu_tsc = emulator_read_tsc() - start_cpu_tsc;
+
+	emulator_log(true, LOG_SEVERITY_INFO, "Uptime: %llu ms\n\r", working_time);
+	
+	emulator_log(true, LOG_SEVERITY_INFO, "Timer ticks: %li (1 tick is ~1 ms)\n\r", ticks);
+	
+	emulator_log(true, LOG_SEVERITY_INFO, "CPU TSC since starting: %llu\n\r", working_cpu_tsc);
+
+	if (log_file) fclose(log_file);
+	
+	log_file = nullptr;
 
 	// fflush(stdout);
 
@@ -249,40 +237,102 @@ static void on_emulator_exit() {
 	free(orig_termios);
 }
 
+void emulator_log(bool mirror_stdout, log_severity_e severity, const char* format, ...) {
+	va_list args, args2;
+
+	va_start(args, format);
+
+	va_copy(args2, args);
+
+	time_t cur_time = time(0);
+
+	struct tm* local_time = localtime(&cur_time);
+
+	char str_buf_time[32];
+
+	size_t writed_buf_size = strftime(str_buf_time, 32, "%H:%M:", local_time);
+
+	if (writed_buf_size > 0) {
+		struct timespec ts;
+
+		timespec_get(&ts, TIME_UTC);
+
+		snprintf(str_buf_time + writed_buf_size, 32 - writed_buf_size, "%02lli.%06lli", ts.tv_sec % 60, (ts.tv_nsec / 1000) % 1000000);
+	}
+
+	const c_str severities_name[] = {
+		[LOG_SEVERITY_OK] 	=		"OK",
+		[LOG_SEVERITY_INFO] 	=	"INFO",
+		[LOG_SEVERITY_WARNING] 	= 	"WARN",
+		[LOG_SEVERITY_ERROR] 	= 	"ERROR"
+	};
+
+	const c_str severities_color[] = {
+		[LOG_SEVERITY_OK] 	= 		bold green_fg,
+		[LOG_SEVERITY_INFO] 	= 	white_fg,
+		[LOG_SEVERITY_WARNING] 	= 	bold bright_yellow_fg,
+		[LOG_SEVERITY_ERROR] 	= 	bold red_fg	
+	};
+
+	const _size_t severities_cnt = sizeof(severities_name) / sizeof(severities_name[0]);
+
+	_size_t severity_index = MIN(severities_cnt, severity);
+
+	if (log_file) {
+		fprintf(log_file, "[%s][%s] ", str_buf_time, severities_name[severity_index]);
+		
+		vfprintf(log_file, format, args);
+	}
+
+	if (!log_file || mirror_stdout) {
+		printf(default_style "[%s][%s]%s ", str_buf_time, severities_name[severity_index], severities_color[severity_index]);
+
+		vprintf(format, args2);
+
+		printf(default_style);
+	}
+}
+
 // extern void printf(const char* format, int len);
 
 // extern void exit123(int);
 
 int main() {
 	#ifdef IS_WIN
-	printf("This program now is unsupported on windows, try again on UNIX-like OS (macOS, Linux or similar)");
+	printf("This emulator now is unsupported on windows, try again on UNIX-like OS (macOS, Linux or similar)");
+	
+	exit(1);
 	#endif
 
-	// printf("TSC Calibration...\n\r");
+	struct timespec ts;
 
-	// uint64 dur = 0, second = 0;
+	timespec_get(&ts, TIME_UTC);
 
-	// while (second <= 20) {
-	// 	uint64 start = read_tsc();
+	emulator_start_time = (ts.tv_nsec / 1000000) + (ts.tv_sec * 1000);
 
-	// 	sleep(1);
+	log_file = fopen("emulator.log", "a");
 
-	// 	dur = (dur + read_tsc() - start) / 2;
+	if (!log_file) {
+		printf("Unable to open log file, log will be shadowing in stdout\n\r");
+	}
 
-	// 	printf("dur: %lu counts. %lu s/20 s\n\r", dur, second);
+	time_t cur_time = time(0);
 
-	// 	second += 1;
-	// }
+	struct tm* local_time = localtime(&cur_time);
 
-	// printf("Result: %lu counts/s\n\r", dur);
+	char buf[32];
 
-	// exit(0);
+	strftime(buf, 32, "%d %B %Y", local_time);
 
-	// printf("Hello!\n", 7);
-
-	// exit123(0);
+	emulator_log(true, LOG_SEVERITY_INFO, "OS Emulator (GPL V3.0) version " EMULATOR_VERSION_STR " by RDev.\n");
+	emulator_log(true, LOG_SEVERITY_INFO, "Project github: https://github.com/RandomComp/Emulator_OS\n");
+	emulator_log(true, LOG_SEVERITY_INFO, "Running on %s\n\r", buf);
 
 	change_title("OS Emulator (Ctrl+C to exit)");
+
+	timespec_get(&ts, TIME_UTC);
+
+	uint64 init_start_time = ts.tv_nsec / 1000;
 
 	orig_termios = switch_to_raw();
 
@@ -298,24 +348,26 @@ int main() {
 
 	// get_terminal_size(&columns, &rows);
 
-	cpu = init_cpu(&timer_handler);
+	cpu = init_cpu(frametime_ns, halted_frametime_ns, &timer_handler);
 
 	vga = init_vga_text_screen(columns, rows);
 
 	cmos = init_cmos();
 
-	setup_signals();
+	kbdps2 = init_kbdps2();
 
-	init_default_table_port_in();
-
-	init_default_table_port_out();
+	init_power_control();
 
 	printf(invisible_cursor);
 
+	timespec_get(&ts, TIME_UTC);
+
+	uint64 emulator_init_dur = (ts.tv_nsec / 1000) - init_start_time;
+
+	emulator_log(true, LOG_SEVERITY_INFO, "Initialization duration: %llu us\n\r", emulator_init_dur);
+
 	kmain(0x2BADB002, nullptr);
 
-	update();
-	
 	exit_emulator(0);
 
 	return 0;

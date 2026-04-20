@@ -260,8 +260,8 @@ static inline float fround(float x) {
 
 #endif
 
-#define fmin nblk__fmin
-#define fmax nblk__fmax
-#define fmod nblk__fmod
-#define ceil nblk__ceil
-#define floor nblk__floor
+#define fmin(a, b) 	nblk__fmin(a, b)
+#define fmax(a, b) 	nblk__fmax(a, b)
+#define fmod(a, b) 	nblk__fmod(a, b)
+#define ceil(x) 	nblk__ceil(x)
+#define floor(x)	nblk__floor(x)

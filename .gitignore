@@ -1,0 +1,7 @@
+*.vmdk
+*.img
+*.log
+*.out
+*.o
+test.asm
+kernel.bin

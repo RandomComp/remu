@@ -2,6 +2,8 @@
 
 #include "drivers/memory/memory.h"
 
+#include "builtins/builtins.h"
+
 //#include "../include/acpi.h"
 
 void shutdown(void) {

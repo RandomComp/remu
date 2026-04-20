@@ -3,7 +3,7 @@
 
 #include "types.h"
 
-typedef _size_t _time_t;
+typedef _ssize_t _time_t;
 
 typedef struct struct_time_t {
 	_time_t second;

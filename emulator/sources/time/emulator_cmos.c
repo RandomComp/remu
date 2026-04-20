@@ -8,7 +8,7 @@
 
 #include "main.h"
 
-#include "builtins/bcd.h"
+#include "bcd.h"
 
 #include "time/time.h"
 
@@ -81,8 +81,6 @@ static void cmos_write(_size_t data) {
 	}
 
 	cur->unix_time = unix_time_from_struct_time(rtc_time);
-	
-	reg = 0;
 }
 
 static _size_t cmos_read() {
@@ -109,52 +107,56 @@ static _size_t cmos_read() {
 	}
 
 	if (reg_val >= 0) {
-		reg = 0;
-
 		return reg_val;
 	}
 
 	_size_t result = 0;
 
+	struct_time_t struct_time = struct_time_from_unix_time(cur->unix_time);
+
 	if (reg == CMOS_RTC_SECONDS) {
-		result = (_size_t)second_from_unix_time(cur->unix_time);
+		result = struct_time.second;
 	}
 
 	else if (reg == CMOS_RTC_MINUTES) {
-		result = (_size_t)minute_from_unix_time(cur->unix_time);
+		result = struct_time.minute;
 	}
 
 	else if (reg == CMOS_RTC_HOURS) {
-		result = (_size_t)hour_from_unix_time(cur->unix_time);
+		result = struct_time.hour;
+
+		byte pm = result >= 12;
 
 		if ((cur->reg_b & CMOS_REGISTER_B_IS_24_FORMAT) == 0) {
-			byte pm = result >= 12;
-
 			result %= 12;
+		}
+		
+		result = ((cur->reg_b & 0x4) != 0) ? result : to_bcd(result);
 
+		if ((cur->reg_b & CMOS_REGISTER_B_IS_24_FORMAT) == 0) {
 			result |= pm << 7;
 		}
+
+		return result;
 	}
 
 	else if (reg == CMOS_RTC_DAY_OF_WEEK) {
-		result = (_size_t)day_from_unix_time(cur->unix_time);
+		result = struct_time.day_of_week;
 	}
 
 	else if (reg == CMOS_RTC_DAY_OF_MONTH) {
-		result = (_size_t)day_from_unix_time(cur->unix_time);
+		result = struct_time.day_of_month;
 	}
 
 	else if (reg == CMOS_RTC_YEARS) {
-		result = (_size_t)year_from_unix_time(cur->unix_time) % 100;
+		result = struct_time.year % 100;
 	}
 
 	else if (reg == CMOS_RTC_CENTURY) {
-		result = (_size_t)century_from_unix_time(cur->unix_time);
+		result = struct_time.year / 100;
 	}
 
 	result = ((cur->reg_b & 0x4) != 0) ? result : to_bcd(result);
-
-	reg = 0;
 
 	return result;
 }
@@ -167,8 +169,8 @@ time_t get_gmtoff() {
 	return loc->tm_gmtoff;
 }
 
-void update_cmos() {
-	if (!cur) return 0;
+static void update_cmos() {
+	if (!cur) return;
 
 	cur->reg_a |= 0x80;
 
@@ -178,6 +180,8 @@ void update_cmos() {
 }
 
 cmos_t* init_cmos() {
+	emulator_log(true, LOG_SEVERITY_INFO, "CMOS initialization...\n\r");
+
 	cmos_t* cmos = malloc(sizeof(cmos_t));
 
 	memset(cmos, 0, sizeof(cmos_t));
@@ -197,22 +201,50 @@ cmos_t* init_cmos() {
 	cmos->reg_d = 0b10000000;
 
 	cur = cmos;
+	
+	emulator_log(false, LOG_SEVERITY_INFO, "Setting up timer (1 hz) for CMOS updating...\n\r");
 
-	setup_tick_timer(update_cmos, 1000);
+	setup_tick_timer(&update_cmos, 1000);
 
-	setup_port_out(0x70, cmos_reg);
+	emulator_log(false, LOG_SEVERITY_INFO, "Setting up ports (0x70, 0x71) for CMOS...\n\r");
 
-	setup_port_in(0x70, cmos_get_reg);
+	setup_port_out(0x70, &cmos_reg);
 
-	setup_port_out(0x71, cmos_write);
+	setup_port_in(0x70, &cmos_get_reg);
 
-	setup_port_in(0x71, cmos_read);
+	setup_port_out(0x71, &cmos_write);
+
+	setup_port_in(0x71, &cmos_read);
+
+	emulator_log(true, LOG_SEVERITY_OK, "CMOS initialization done!\n\r");
 
 	return cmos;
 }
 
 void free_cmos(cmos_t* cmos) {
-	if (!cmos) return;
+	emulator_log(true, LOG_SEVERITY_INFO, "CMOS deinitialization...\n\r");
 
-	free(cmos);
+	if (cmos) free(cmos);
+
+	if (cur == cmos) {
+		cur = nullptr;
+	}
+
+	emulator_log(true, LOG_SEVERITY_OK, "CMOS deinitialization done!\n\r");
+}
+
+void release_all_cmos() {
+	release_tick_timer(update_cmos);
+
+	release_port_out(0x70);
+
+	release_port_in(0x70);
+
+	release_port_out(0x71);
+
+	release_port_in(0x71);
+
+	if (cur) free(cur);
+
+	cur = nullptr;
 }

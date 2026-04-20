@@ -1,16 +1,80 @@
 #ifndef _EMULATOR_OS_BLOCK_STD_H
 #define _EMULATOR_OS_BLOCK_STD_H
 
-#define set_cursor_pos 0
-#define get_terminal_size 0
+#define change_title(title) 0
 
-#define get_draw_buf 0
+#define switch_to_default(orig_termios) 0
+#define switch_to_raw() 0
 
-#define set_halt 0
+#define init_timer(timer, ns, handler) 0
+#define setup_timer(timerid, ns) 0
 
-#define clear_halt 0
+#define set_cursor_pos(x, y) 0
+#define get_terminal_size(columns, rows) 0
 
-#define init_default_table_port_in 0
+#define set_halt(cpu) 0
+#define clear_halt(cpu) 0
+#define emulator_read_tsc() 0
+
+#define init_power_control() 0
+
+#define release_power_control() 0
+
+#define port_in(port) 0
+
+#define port_out(value) 0
+
+#define setup_port_in(handler) 0
+
+#define setup_port_out(handler) 0
+
+#define setup_tick_timer(ms) 0
+
+#define release_port_in(port) 0
+
+#define release_port_out(port) 0
+
+#define release_tick_timer(handler) 0
+
+#define log(mirror_stdout, format, ...) 0
+
+#define exit_emulator(code) 0
+
+#define init_cpu(frametime_ns, halted_frametime_ns, tick) 0
+
+#define set_halt(cpu) 0
+
+#define clear_halt(cpu) 0
+
+#define get_itval_ns(cpu) 0
+
+#define cpu_setup_signals() 0
+
+#define free_cpu(cpu) 0
+
+#define release_cpu(cpu) 0
+
+#define init_vga_text_screen(columns, rows) 0
+
+#define clear_vga_text_screen(screen) 0
+
+#define draw_vga_text_screen(screen) 0
+
+#define free_vga_text_screen(screen) 0
+
+#define vga_text_screen_apply_attribute(attribute) 0
+
+#define init_kbdps2() 0
+
+#define free_kbdps2(kbdps2) 0
+
+#define release_all_kbdps2() 0
+
+#define init_cmos() 0
+
+#define free_cmos(cmos) 0
+
+#define release_all_cmos() 0
 
 #define isalnum 0
 #define isalpha 0
@@ -166,7 +230,7 @@
 #define clock 0
 #define difftime 0
 #define mktime 0
-#define time 0
+#define time(timer) 0
 #define asctime 0
 #define ctime 0
 #define gmtime 0

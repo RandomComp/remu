@@ -14,25 +14,37 @@
 
 #include <unistd.h>
 
-#include "drivers/time/tsc.h"
-
 #include "main.h"
 
 #include "ansi.h"
 
 #include "utils.h"
 
-cpu_t* init_cpu(void (*tick)(int)) {
+cpu_t* init_cpu(time_t frametime_ns, time_t halted_frametime_ns, void (*tick)(int)) {
+	emulator_log(true, LOG_SEVERITY_INFO, "CPU initialization...\n\r");
+	
 	cpu_t* cpu = malloc(sizeof(cpu_t));
 
 	memset(cpu, 0, sizeof(cpu_t));
 
 	cpu->halted = false;
-	cpu->frametime_ns = 1000 * 1000 * 20;
-	cpu->halted_frametime_ns = 1000 * 1000 * 100;
-	cpu->tsc_start = read_tsc();
+	cpu->frametime_ns = frametime_ns;
+	cpu->halted_frametime_ns = halted_frametime_ns;
+	cpu->tsc_start = emulator_read_tsc();
 
-	init_timer(&cpu->hardware_timerid, cpu->frametime_ns, tick);
+	uint64 cpu_timer_ns = get_itval_ns(cpu);
+
+	uint64 cpu_hz = 1000000000 / cpu_timer_ns;
+
+	emulator_log(false, LOG_SEVERITY_INFO, "Initialization CPU hardware timer (%llu hz)...\n\r", cpu_hz);
+
+	init_timer(&cpu->hardware_timerid, cpu_timer_ns, tick);
+
+	emulator_log(false, LOG_SEVERITY_INFO, "Setup CPU signals... (SIGHUP, SIGINT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGSEGV, SIGTERM, SIGSTKFLT, SIGTSTP, SIGXCPU, SIGXFSZ, SIGWINCH)\n\r");
+
+	cpu_setup_signals();
+
+	emulator_log(true, LOG_SEVERITY_OK, "CPU initialization done!\n\r");
 
 	return cpu;
 }
@@ -40,6 +52,8 @@ cpu_t* init_cpu(void (*tick)(int)) {
 void set_halt(cpu_t* cpu) {
 	if (!cpu || cpu->halted) return;
 
+	emulator_log(false, LOG_SEVERITY_OK, "CPU halted\n\r");
+	
 	cpu->halted = true;
 
 	setup_timer(cpu->hardware_timerid, cpu->halted_frametime_ns);
@@ -50,6 +64,8 @@ void clear_halt(cpu_t* cpu) {
 
 	cpu->halted = false;
 
+	emulator_log(false, LOG_SEVERITY_OK, "CPU unhalted\n\r");
+
 	setup_timer(cpu->hardware_timerid, cpu->frametime_ns);
 }
 
@@ -59,24 +75,22 @@ uint64 get_itval_ns(cpu_t* cpu) {
 	return cpu->halted ? cpu->halted_frametime_ns : cpu->frametime_ns;
 }
 
-void free_cpu(cpu_t* cpu) {
-	if (!cpu) return;
-
-	free(cpu);
-}
-
 static void sig_hup(int sig) { // 1
+	emulator_log(true, LOG_SEVERITY_OK, "Exiting emulator because terminal was closed...\n\r");
+	
 	exit_emulator(0);
 }
 
 static void sig_int(int sig) { // 2
+	emulator_log(true, LOG_SEVERITY_OK, "Exiting emulator because pressed Ctrl+C...\n\r");
+	
 	exit_emulator(0);
 }
 
 static void sig_ill(int sig) { // 4
 	// TODO: вызывать тут обработчик из таблицы прерываний
 
-	printf("Tried to execute illegal instruction of processor (IllegalInstructionError, ISR 6), and no any handler registered for this ISR, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to execute illegal instruction of processor (IllegalInstructionError, ISR 6, SIG %i), and no any handler registered for this ISR, emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
@@ -84,13 +98,13 @@ static void sig_ill(int sig) { // 4
 static void sig_trap(int sig) { // 5
 	// TODO: вызывать тут обработчик из таблицы прерываний
 
-	printf("While the code was executing, a breakpoint was encountered (BreakPoint, ISR 3), and no any handler registered for this ISR, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "While the code was executing, a breakpoint was encountered (BreakPoint, ISR 3, SIG %i), and no any handler registered for this ISR, emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
 
 static void sig_abrt(int sig) { // 6
-	printf("Emulator aborted!\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "Emulator aborted!\n\r");
 	
 	exit_emulator(0);
 }
@@ -98,7 +112,7 @@ static void sig_abrt(int sig) { // 6
 static void sig_bus(int sig) { // 7
 	// TODO: вызывать тут обработчик из таблицы прерываний
 
-	printf("Tried to use memory outside of array (BreakPoint, ISR 3), and no any handler registered for this ISR, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to use memory outside of array (BreakPoint, ISR 3, SIG %i), and no any handler registered for this ISR, emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
@@ -106,7 +120,7 @@ static void sig_bus(int sig) { // 7
 static void sig_fpe(int sig) { // 8
 	// TODO: вызывать тут обработчик из таблицы прерываний
 
-	printf("Tried to divide any number by zero (ZeroDivisionError, ISR 0), and no any handler registered for this ISR, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to divide any number by zero (ZeroDivisionError, ISR 0, SIG %i), and no any handler registered for this ISR, emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
@@ -114,36 +128,39 @@ static void sig_fpe(int sig) { // 8
 static void sig_segv(int sig) { // 11
 	// TODO: вызывать тут обработчик из таблицы прерываний
 
-	printf("Tried to use memory outside of array, or an emulator error (SegmentationFaultError, ISR 5), and no any handler registered for this ISR, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to use memory outside of array, or an emulator error (SegmentationFaultError, ISR 5, SIG %i), and no any handler registered for this ISR, emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
 
 static void sig_term(int sig) { // 15
+	emulator_log(true, LOG_SEVERITY_OK, "Exiting emulator because got signal 15 SIGTERM...\n\r");
+	
 	exit_emulator(0);
 }
-
 
 static void sig_stkflt(int sig) { // 16
 	// TODO: вызывать тут обработчик из таблицы прерываний
 
-	printf("FPU Stack error (X87FPUError, ISR 16), and no any handler registered for this ISR, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "FPU Stack error (X87FPUError, ISR 16, SIG %i), and no any handler registered for this ISR, emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
 
 static void sig_tstp(int sig) { // 20
+	emulator_log(true, LOG_SEVERITY_OK, "Exiting emulator because got signal 20 SIGTSTP...\n\r");
+	
 	exit_emulator(0);
 }
 
 static void sig_xcpu(int sig) { // 24
-	printf("An emulator error, because emulator tried to exceed his processor time, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "An emulator error, because emulator tried to exceed his processor time (SIG %i), emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
 
 static void sig_xfsz(int sig) { // 25
-	printf("An emulator error, because emulator tried to exceed emulator log file, emulator exiting...\n\r");
+	emulator_log(true, LOG_SEVERITY_ERROR, "An emulator error, because emulator tried to exceed emulator log file (SIG %i), emulator exiting...\n\r", sig);
 	
 	exit_emulator(0);
 }
@@ -156,7 +173,7 @@ static void sig_winch(int sig) { // 28
 	// init_screen(columns, rows);
 }
 
-void setup_signals() {
+void cpu_setup_signals() {
 	#ifdef IS_UNIX
 		signal(SIGHUP, &sig_hup);
 
@@ -185,5 +202,47 @@ void setup_signals() {
 		signal(SIGXFSZ, &sig_xfsz);
 
 		signal(SIGWINCH, &sig_winch);
+	#endif
+}
+
+void free_cpu(cpu_t* cpu) {
+	emulator_log(true, LOG_SEVERITY_INFO, "CPU deinitialization...\n\r");
+
+	if (cpu) free(cpu);
+
+	emulator_log(true, LOG_SEVERITY_OK, "CPU deinitialization done!\n\r");
+}
+
+void release_cpu(cpu_t* cpu) {
+	if (cpu) free_cpu(cpu);
+
+	#ifdef IS_UNIX
+		signal(SIGHUP, SIG_DFL);
+
+		signal(SIGINT, SIG_DFL);
+
+		signal(SIGILL, SIG_DFL);
+
+		signal(SIGTRAP, SIG_DFL);
+
+		signal(SIGABRT, SIG_DFL);
+
+		signal(SIGBUS, SIG_DFL);
+
+		signal(SIGFPE, SIG_DFL);
+
+		signal(SIGSEGV, SIG_DFL);
+
+		signal(SIGTERM, SIG_DFL);
+
+		signal(SIGSTKFLT, SIG_DFL);
+
+		signal(SIGTSTP, SIG_DFL);
+
+		signal(SIGXCPU, SIG_DFL);
+
+		signal(SIGXFSZ, SIG_DFL);
+
+		signal(SIGWINCH, SIG_DFL);
 	#endif
 }

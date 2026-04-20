@@ -9,6 +9,8 @@ void get_terminal_size(_ssize_t* columns, _ssize_t* rows);
 
 void change_title(const char* title);
 
+uint64 emulator_read_tsc();
+
 #ifdef IS_UNIX
 #include <termios.h>
 

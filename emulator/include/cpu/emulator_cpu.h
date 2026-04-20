@@ -17,7 +17,7 @@ typedef struct cpu_t {
 	time_t tsc_start;
 } cpu_t;
 
-cpu_t* init_cpu(void (*tick)(int));
+cpu_t* init_cpu(time_t frametime_ns, time_t halted_frametime_ns, void (*tick)(int));
 
 void set_halt(cpu_t* cpu);
 
@@ -25,8 +25,10 @@ void clear_halt(cpu_t* cpu);
 
 uint64 get_itval_ns(cpu_t* cpu);
 
+void cpu_setup_signals();
+
 void free_cpu(cpu_t* cpu);
 
-void setup_signals();
+void release_cpu(cpu_t* cpu);
 
 #endif
