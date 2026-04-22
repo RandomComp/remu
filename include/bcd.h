@@ -1,5 +1,5 @@
-#ifndef _EMULATOR_BCD_H
-#define _EMULATOR_BCD_H
+#ifndef _EMULATOR_OS_BCD_H
+#define _EMULATOR_OS_BCD_H
 
 #include "types.h"
 

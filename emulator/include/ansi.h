@@ -73,7 +73,7 @@ typedef enum ansi_id {
 #define save_cursor "\x1B[s"
 #define load_cursor "\x1B[u"
 
-#define default_screen_color bright_black_bg white_fg
+#define default_screen_color default_style bright_black_bg white_fg
 
 #include "colors.h"
 

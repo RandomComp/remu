@@ -2,9 +2,9 @@
 
 #include "types.h"
 
-#include "drivers/memory/memory.h"
+#include "std.h"
 
-#include "drivers/time/tsc.h"
+#include "drivers/memory/memory.h"
 
 #include "colors.h"
 
@@ -12,263 +12,115 @@
 
 #include "builtins/string.h"
 
-#include "math/math.h"
-
 #include "drivers/power.h"
 
 #include "drivers/time/cmos.h"
 
-#include "bcd.h"
+#include "multiboot.h"
 
-#include "time/time.h"
+void* ram = nullptr;
 
-#define columns 80
-
-#define rows 25
-
-uint16* vidmem = nullptr;
-
-#define vidmem_size (columns * rows)
-
-byte cur_style = 0x0F;
-
-_ssize_t cur_x = 0, cur_y = 0;
-
-void clear_screen(byte style) {
-	if (!vidmem) return;
-
-	for (_size_t i = 0; i < vidmem_size; i++) {
-		vidmem[i] = (uint16)style << 8;
-	}
+byte read_kbd_scancode() {
+	return in8(0x60);
 }
 
-void putch(byte c) {
-	if (!vidmem) return;
-
-	_ssize_t cur_pos = (cur_y * columns) + cur_x;
-	
-	switch (c) {
-		case '\b':
-			cur_x -= 1; break;
-		
-		case '\n':
-			cur_y += 1; break;
-		
-		case '\r':
-			cur_x = 0; break;
-		
-		default:
-			if (cur_pos >= 0 && cur_pos < vidmem_size)
-				vidmem[cur_pos] = cur_style << 8 | c;
-
-			cur_x += 1;
-	}
-
-	cur_pos = (cur_y * columns) + cur_x;
-	
-	cur_x = cur_pos % columns;
-
-	cur_y = cur_pos / columns;
-
-	if (cur_y >= rows) {
-		for (_size_t i = 0; i < rows; i++) {
-			_size_t next_row = MIN(rows - 1, i + 1);
-
-			memcpy(vidmem + (i * columns), vidmem + (next_row * columns), columns);
-		}
-
-		cur_y--;
-	}
-}
-
-void print(const c_str str) {
-	if (!vidmem) return;
-
-	for (_size_t i = 0; str[i] && i < vidmem_size; i++) {
-		putch(str[i]);
-	}
-}
-
-_size_t get_num_digits(_ssize_t num, _size_t base) {
-	_size_t result = 0;
-
-	while (num >= base) {
-		result += 1;
-
-		num /= base;
-	}
-
-	return MAX(result, 1);
-}
-
-const char num_alphabet[] = 
-	"0123456789"
-	"ABCDEFGHIJ"
-	"KLMNOPQRST"
-	"UVWXYZ";
-
-const _size_t alphabet_size = sizeof(num_alphabet);
-
-void print_num(_size_t num, _size_t base) {
-	if (!vidmem) return;
-
-	if (base <= 0 || base >= alphabet_size) {
-		print("Base should be in range 2...");
-
-		print_num(alphabet_size - 1, 10);
-
-		print(", not ");
-
-		print_num(base, 10);
-
-		print("\n\r");
-
-		return;
-	}
-
-	if (num < 0) putch('-');
-
-	num = ABS(num);
-
-	if (num < base) {
-		putch(num_alphabet[num]);
-
-		return;
-	}
-
-	char buf[32] = { 0 };
-
-	_size_t buf_size = sizeof(buf) / sizeof(buf[0]);
-
-	_size_t index = MIN(buf_size - 1, get_num_digits(num, base));
-
-	while (num >= base && index > 0) {
-		buf[index] = num_alphabet[num % base];
-
-		num /= base;
-
-		index -= 1;
-	}
-	
-	buf[index] = num_alphabet[num % base];
-
-	print(buf);
-}
-
-void nblk__set_cursor_pos(_ssize_t x, _ssize_t y) {
-	cur_x = x; cur_y = y;
-}
-
-#define set_cursor_pos nblk__set_cursor_pos
-
-void get_cursor_pos(_ssize_t* x, _ssize_t* y) {
-	if (x) *x = cur_x;
-
-	if (y) *y = cur_y;
-}
-
-void set_style(byte style) {
-	cur_style = style;
-}
-
-byte get_style() {
-	return cur_style;
-}
-
-byte read_mode_reg() {
-	in8(0x3DA);
-
-	out8(0x3C0, 0x10 | 0x20);
-
-	return in8(0x3C1);
-}
-
-void enable_blink() {
-	byte mode = read_mode_reg() | 0x08;
-
-	in8(0x3DA);
-
-	out8(0x3C0, 0x10 | 0x20);
-
-	out8(0x3C0, mode | 0x20);
-}
-
-void disable_blink() {
-	byte mode = read_mode_reg() & (~0x08);
-
-	in8(0x3DA);
-
-	out8(0x3C0, 0x10 | 0x20);
-
-	out8(0x3C0, mode | 0x20);
-}
-
-bool cmos_update_in_progress() {
-	out8(0x70, 0xA);
-
-	byte reg_a = in8(0x71);
-
-	return (reg_a & CMOS_REGISTER_A_UPDATE_IN_PROGRESS) != 0;
-}
-
-void show_rtc_time() {
-	out8(0x70, 0xB);
-
-	byte reg_b = in8(0x71);
-	
-	out8(0x70, 0);
-
-	byte second = from_bcd(in8(0x71));
-
-	out8(0x70, 2);
-
-	byte minute = from_bcd(in8(0x71));
-
-	out8(0x70, 4);
-
-	byte hour = in8(0x71);
-
-	bool pm = false;
-
-	if ((reg_b & CMOS_REGISTER_B_IS_24_FORMAT) == 0) {
-		pm = hour & 0x80;
-
-		hour &= 0x7F;
-	}
-
-	hour = from_bcd(hour);
-
-	print_num(hour, 10); putch(':');
-
-	print_num(minute, 10); putch(':');
-
-	print_num(second, 10);
-
-	if ((reg_b & CMOS_REGISTER_B_IS_24_FORMAT) == 0) {
-		if (pm) print(" PM");
-
-		else print(" AM");
-	}
-}
-
-byte read_rtc_seconds() {
-	out8(0x70, 0x0B);
-
-	byte reg_b = in8(0x71);
-
-	out8(0x70, 0x00);
-
-	byte second = in8(0x71);
-
-	if ((reg_b & CMOS_REGISTER_B_IS_BINARY_MODE) == 0) {
-		second = from_bcd(second);
-	}
-
-	return second;
-}
-
-void kmain(uint32 magic, void* ptr) {
-	vidmem = (uint16*)getMemoryOffset(PMT_TEXT_MEM_80x25);
+typedef enum scancode_e {
+	SCANCODE_NULL,
+	SCANCODE_ESCAPE,
+	SCANCODE_1,
+	SCANCODE_2,
+	SCANCODE_3,
+	SCANCODE_4,
+	SCANCODE_5,
+	SCANCODE_6,
+	SCANCODE_7,
+	SCANCODE_8,
+	SCANCODE_9,
+	SCANCODE_0,
+	SCANCODE_MINUS_SIGN,
+	SCANCODE_EQUAL,
+	SCANCODE_BACKSPACE,
+	SCANCODE_TAB,
+	SCANCODE_Q,
+	SCANCODE_W,
+	SCANCODE_E,
+	SCANCODE_R,
+	SCANCODE_T,
+	SCANCODE_Y,
+	SCANCODE_U,
+	SCANCODE_I,
+	SCANCODE_O,
+	SCANCODE_P,
+	SCANCODE_LEFT_BRACKET,
+	SCANCODE_RIGHT_BRACKET,
+	SCANCODE_ENTER,
+	SCANCODE_CONTROL,
+	SCANCODE_A,
+	SCANCODE_S,
+	SCANCODE_D,
+	SCANCODE_F,
+	SCANCODE_G,
+	SCANCODE_H,
+	SCANCODE_J,
+	SCANCODE_K,
+	SCANCODE_L,
+	SCANCODE_SEMICOLON,
+	SCANCODE_QUOTE,
+	SCANCODE_BACK_TICK,
+	SCANCODE_LEFT_SHIFT,
+	SCANCODE_BACKSLASH,
+	SCANCODE_Z,
+	SCANCODE_X,
+	SCANCODE_C,
+	SCANCODE_V,
+	SCANCODE_B,
+	SCANCODE_N,
+	SCANCODE_M,
+	SCANCODE_COMMA,
+	SCANCODE_DOT,
+	SCANCODE_SLASH,
+	SCANCODE_RIGHT_SHIFT,
+	SCANCODE_NUMBER_PAD_ASTERISK,
+	SCANCODE_LEFT_ALT,
+	SCANCODE_SPACE,
+	SCANCODE_CAPSLOCK,
+	SCANCODE_F1,
+	SCANCODE_F2,
+	SCANCODE_F3,
+	SCANCODE_F4,
+	SCANCODE_F5,
+	SCANCODE_F6,
+	SCANCODE_F7,
+	SCANCODE_F8,
+	SCANCODE_F9,
+	SCANCODE_F10,
+	SCANCODE_NUMBER_PAD_LOCK,
+	SCANCODE_SCROLL_LOCK,
+	SCANCODE_NUMBER_PAD_7,
+	SCANCODE_NUMBER_PAD_8,
+	SCANCODE_NUMBER_PAD_9,
+	SCANCODE_NUMBER_PAD_MINUS_SIGN,
+	SCANCODE_NUMBER_PAD_4,
+	SCANCODE_NUMBER_PAD_5,
+	SCANCODE_NUMBER_PAD_6,
+	SCANCODE_NUMBER_PAD_PLUS_SIGN,
+	SCANCODE_NUMBER_PAD_1,
+	SCANCODE_NUMBER_PAD_2,
+	SCANCODE_NUMBER_PAD_3,
+	SCANCODE_NUMBER_PAD_0,
+	SCANCODE_NUMBER_PAD_DOT,
+	SCANCODE_NONE0,
+	SCANCODE_NONE1,
+	SCANCODE_NONE2,
+	SCANCODE_F11,
+	SCANCODE_F12,
+	SCANCODE_CONTROL_SEQUENCE = 0xE0
+} scancode_e;
+
+void kmain(uint32 magic, multiboot_info_t* multiboot) {
+	ram = get_ram();
+
+	init_std(ram + 0xB8000);
 
 	byte style = COLOR_BRIGHT_WHITE | (COLOR_BLACK << 4);
 
@@ -276,55 +128,101 @@ void kmain(uint32 magic, void* ptr) {
 
 	set_style(style);
 
-	out8(0x70, 0x0B);
+	while (true) {
+		in8(0x80);
 
-	print("Register B: "); print_num(in8(0x71), 2); print("\n\r");
+		bool active = in8(0x64) & 1;
 
-	print("Second: "); print_num(read_rtc_seconds(), 10); print("\n\r");
+		byte scancode = read_kbd_scancode() & 0x7F;
 
-	print("TSC Calibrating in progress...\n\r");
+		if (active && scancode) {
+			// bool scancode_released = 
 
-	uint64 tsc_calibrate_time = 0;
+			byte scancode_to_c[] = {
+				[SCANCODE_NULL] = 					'\0',
+				[SCANCODE_ESCAPE] = 				'\x1B',
+				[SCANCODE_0] = 						'0',
+				[SCANCODE_1] = 						'1',
+				[SCANCODE_2] = 						'2',
+				[SCANCODE_3] = 						'3',
+				[SCANCODE_4] = 						'4',
+				[SCANCODE_5] = 						'5',
+				[SCANCODE_6] = 						'6',
+				[SCANCODE_7] = 						'7',
+				[SCANCODE_8] = 						'8',
+				[SCANCODE_9] = 						'9',
+				[SCANCODE_MINUS_SIGN] =				'-',
+				[SCANCODE_EQUAL] =					'=',
+				[SCANCODE_BACKSPACE] = 				'\b',
+				[SCANCODE_TAB] = 					'\t',
+				[SCANCODE_Q] = 						'Q',
+				[SCANCODE_W] = 						'W',
+				[SCANCODE_E] = 						'E',
+				[SCANCODE_R] = 						'R',
+				[SCANCODE_T] = 						'T',
+				[SCANCODE_Y] = 						'Y',
+				[SCANCODE_U] = 						'U',
+				[SCANCODE_I] = 						'I',
+				[SCANCODE_O] = 						'O',
+				[SCANCODE_P] = 						'P',
+				[SCANCODE_LEFT_BRACKET] = 			'[',
+				[SCANCODE_RIGHT_BRACKET] = 			']',
+				[SCANCODE_ENTER] = 					'\n',
+				[SCANCODE_A] = 						'A',
+				[SCANCODE_S] = 						'S',
+				[SCANCODE_D] = 						'D',
+				[SCANCODE_F] = 						'F',
+				[SCANCODE_G] = 						'G',
+				[SCANCODE_H] = 						'H',
+				[SCANCODE_J] = 						'J',
+				[SCANCODE_K] = 						'K',
+				[SCANCODE_L] = 						'L',
+				[SCANCODE_SEMICOLON] = 				':',
+				[SCANCODE_QUOTE] = 					'?',
+				[SCANCODE_BACK_TICK] = 				'`',
+				[SCANCODE_BACKSLASH] = 				'\\',
+				[SCANCODE_Z] = 						'Z',
+				[SCANCODE_X] = 						'X',
+				[SCANCODE_C] = 						'C',
+				[SCANCODE_V] = 						'V',
+				[SCANCODE_B] = 						'B',
+				[SCANCODE_N] = 						'N',
+				[SCANCODE_M] = 						'M',
+				[SCANCODE_COMMA] = 					',',
+				[SCANCODE_DOT] = 					'.',
+				[SCANCODE_SLASH] = 					'/',
+				[SCANCODE_NUMBER_PAD_ASTERISK] = 	'*',
+				[SCANCODE_SPACE] = 					' ',
+				[SCANCODE_NUMBER_PAD_7] = 			'7',
+				[SCANCODE_NUMBER_PAD_8] = 			'8',
+				[SCANCODE_NUMBER_PAD_9] = 			'9',
+				[SCANCODE_NUMBER_PAD_MINUS_SIGN] = 	'-',
+				[SCANCODE_NUMBER_PAD_4] = 			'4',
+				[SCANCODE_NUMBER_PAD_5] = 			'5',
+				[SCANCODE_NUMBER_PAD_6] = 			'6',
+				[SCANCODE_NUMBER_PAD_PLUS_SIGN] = 	'+',
+				[SCANCODE_NUMBER_PAD_1] = 			'1',
+				[SCANCODE_NUMBER_PAD_2] = 			'2',
+				[SCANCODE_NUMBER_PAD_3] = 			'3',
+				[SCANCODE_NUMBER_PAD_0] = 			'0',
+				[SCANCODE_NUMBER_PAD_DOT] = 		'.',
+			};
 
-	#define CALIBRATE_SECONDS 5
+			byte c = scancode_to_c[scancode];
 	
-	_time_t cur_calibrate_second = 0;
+			if ((c >= ' ' && c <= '~')) {
+				putch(c);
+			}
 
-	byte st_seconds = read_rtc_seconds();
+			else if (c == '\n' || c == '\r') {
+				kprint("\n\r");
+			}
 
-	while (read_rtc_seconds() == st_seconds);
-
-	while (cur_calibrate_second < CALIBRATE_SECONDS) {
-		uint64 start = read_tsc();
-
-		st_seconds = read_rtc_seconds();
-
-		while (read_rtc_seconds() == st_seconds);
-
-		// print("                         \r");
-
-		uint64 dur = read_tsc() - start;
-
-		tsc_calibrate_time += dur;
-
-		print("Calculated time: "); print_num(dur, 10); putch(' '); 
-		print_num(cur_calibrate_second, 10); putch('/'); print_num(CALIBRATE_SECONDS, 10);
-		print("\n\r");
-
-		cur_calibrate_second += 1;
+			else if (c == '\b') {
+				kprint("\b \b");
+			}
+		}
 	}
 
-	uint64 avg_tsc_s = tsc_calibrate_time / CALIBRATE_SECONDS;
-
-	print("TSC Calibration done!\n\r");
-
-	print("Result: "); print_num(avg_tsc_s, 10); print(" ticks/s\n\r");
-
-	for (_size_t i = 0; i < 16; i++) {
-		set_style(i);
-
-		print("Hello, world!\n\r");
-	}
-
-	reboot();
+	for (;;) halt();
 }

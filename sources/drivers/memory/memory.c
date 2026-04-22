@@ -3,26 +3,27 @@
 #include "types.h"
 
 #ifndef FREE_STANDING_MODE
+#include "emulator_io.h"
+
+#include "emulator.h"
+
 #include "main.h"
 
-#include "vga/emulator_vga.h"
-
-extern vga_text_screen_t* vga;
+extern emulator_t* emulator;
 #endif
 
-void* getMemoryOffset(PredefinedMemoryType PMTType) {
+void* get_ram() {
 	#ifdef FREE_STANDING_MODE
-	void* memoryOffsets[] = {
-		[PMT_RAM_BASIC] =       (void*)RMA_RAM_BASIC,
-		[PMT_TEXT_MEM_80x25] =  (void*)RMA_TEXT_MEM_80x25
-	};
+	return (void*)0;
 
-	return memoryOffsets[PMTType];
 	#else
-	if (PMTType == PMT_TEXT_MEM_80x25) return vga->vidmem;
+	if (!emulator) return nullptr;
+	
+	if (emulator->ram)
+		return emulator->ram->mem_ptr;
+	#endif
 
 	return nullptr;
-	#endif
 }
 
 uint8 in8(uint16 port) {

@@ -3,8 +3,6 @@
 
 #include "types.h"
 
-typedef _ssize_t _time_t;
-
 typedef struct struct_time_t {
 	_time_t second;
 	_time_t minute;

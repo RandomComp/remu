@@ -80,11 +80,70 @@ typedef enum ErrorCode {
 
 // #define OS_BIG_ENDIAN
 
+#if (defined(_WIN32) || defined(_WIN64))
+#define IS_WIN 
+#elif (defined(__linux__) || defined(__APPLE__) || defined(__unix__) || defined(__unix) || defined(__FreeBSD__) || defined(__ANDROID__))
+#define IS_UNIX
+#endif
+
+#if (defined(_WIN32) || defined(_WIN64))
+#define PLATFORM_NAME "Windows"
+#elif (defined(__ANDROID__))
+#define PLATFORM_NAME "Android"
+#elif (defined(__APPLE__) || defined(__MACH__))
+#define PLATFORM_NAME "MacOS"
+#elif (defined(__linux__))
+#define PLATFORM_NAME "Linux"
+#elif (defined(__unix__) || defined(__unix))
+#define PLATFORM_NAME "UNIX compatible"
+#elif (defined(_POSIX_VERSION))
+#define PLATFORM_NAME "POSIX compatible"
+#endif
+
+#if (defined(i386) || defined(__i386__) || defined(_X86_))
+#define PLATFORM_ARCH "x86-32"
+#define PLATFORM_X86_32
+#elif (defined(__x86_64__) || defined(__x86_64) || defined(_M_X64) || defined(_M_AMD64))
+#define PLATFORM_ARCH "x86-64"
+#define PLATFORM_X86_64
+#elif (defined(__arm__) || defined(__ARMEL__))
+#define PLATFORM_ARCH "ARM-32"
+#define PLATFORM_ARM_32
+#elif (defined(__aarch64__))
+#define PLATFORM_ARCH "AARCH-64"
+#define PLATFORM_AARCH_64
+#elif (defined(__riscv) || defined(__riscv__))
+#define PLATFORM_ARCH "RISC-V"
+#define PLATFORM_RISC_V
+#endif
+
+#if (defined(__GNUC__) || defined(__GNUC_MINOR__) || defined(__GNUC_PATCHLEVEL__))
+#define PLATFORM_COMPILER_NAME "GCC"
+#elif (defined(__clang__))
+#define PLATFORM_COMPILER_NAME "Clang"
+#elif (defined(_MSC_VER))
+#define PLATFORM_COMPILER_NAME "MSVC"
+#elif (defined(__INTEL_COMPILER))
+#define PLATFORM_COMPILER_NAME "Intel compiler"
+#elif (defined(__MINGW32__) || defined(__MINGW64__))
+#define PLATFORM_COMPILER_NAME "MINGW"
+#endif
+
+#ifdef __STDC_HOSTED__
+	#if __STDC_HOSTED__ == 0
+		#define FREE_STANDING_MODE
+	#endif
+#else
+	#define FREE_STANDING_MODE
+#endif
+
 // #define BITS_16
 
-// #define BITS_32
-
+#ifdef FREE_STANDING_MODE
+#define BITS_32
+#else
 #define BITS_64
+#endif
 
 // BITS 16 is unsupported now.
 
@@ -152,62 +211,7 @@ typedef int64 intmax_t;
 typedef uint8 uintmin_t;
 typedef uint64 uintmax_t;
 
-#if (defined(_WIN32) || defined(_WIN64))
-#define IS_WIN 
-#elif (defined(__linux__) || defined(__APPLE__) || defined(__unix__) || defined(__unix) || defined(__FreeBSD__) || defined(__ANDROID__))
-#define IS_UNIX
-#endif
-
-#if (defined(_WIN32) || defined(_WIN64))
-#define PLATFORM_NAME "Windows"
-#elif (defined(__ANDROID__))
-#define PLATFORM_NAME "Android"
-#elif (defined(__APPLE__) || defined(__MACH__))
-#define PLATFORM_NAME "MacOS"
-#elif (defined(__linux__))
-#define PLATFORM_NAME "Linux"
-#elif (defined(__unix__) || defined(__unix))
-#define PLATFORM_NAME "UNIX compatible"
-#elif (defined(_POSIX_VERSION))
-#define PLATFORM_NAME "POSIX compatible"
-#endif
-
-#if (defined(i386) || defined(__i386__) || defined(_X86_))
-#define PLATFORM_ARCH "x86-32"
-#define PLATFORM_X86_32
-#elif (defined(__x86_64__) || defined(__x86_64) || defined(_M_X64) || defined(_M_AMD64))
-#define PLATFORM_ARCH "x86-64"
-#define PLATFORM_X86_64
-#elif (defined(__arm__) || defined(__ARMEL__))
-#define PLATFORM_ARCH "ARM-32"
-#define PLATFORM_ARM_32
-#elif (defined(__aarch64__))
-#define PLATFORM_ARCH "AARCH-64"
-#define PLATFORM_AARCH_64
-#elif (defined(__riscv) || defined(__riscv__))
-#define PLATFORM_ARCH "RISC-V"
-#define PLATFORM_RISC_V
-#endif
-
-#if (defined(__GNUC__) || defined(__GNUC_MINOR__) || defined(__GNUC_PATCHLEVEL__))
-#define PLATFORM_COMPILER_NAME "GCC"
-#elif (defined(__clang__))
-#define PLATFORM_COMPILER_NAME "Clang"
-#elif (defined(_MSC_VER))
-#define PLATFORM_COMPILER_NAME "MSVC"
-#elif (defined(__INTEL_COMPILER))
-#define PLATFORM_COMPILER_NAME "Intel compiler"
-#elif (defined(__MINGW32__) || defined(__MINGW64__))
-#define PLATFORM_COMPILER_NAME "MINGW"
-#endif
-
-#ifdef __STDC_HOSTED__
-	#if __STDC_HOSTED__ == 0
-		#define FREE_STANDING_MODE
-	#endif
-#else
-	#define FREE_STANDING_MODE
-#endif
+typedef _ssize_t _time_t;
 
 #define static_assert _Static_assert
 

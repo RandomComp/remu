@@ -36,7 +36,7 @@
 
 #define release_tick_timer(handler) 0
 
-#define log(mirror_stdout, format, ...) 0
+#define emulator_log(mirror_stdout, severity, format, ...) 0
 
 #define exit_emulator(code) 0
 

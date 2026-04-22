@@ -5,3 +5,5 @@
 *.o
 test.asm
 kernel.bin
+repo_pushing_token
+.fuse_*

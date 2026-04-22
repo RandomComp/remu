@@ -56,4 +56,16 @@ typedef enum cmos_reg_d_bits_e {
 	CMOS_REGISTER_D_IS_CMOS_BATTERY_CHARGED = 0x80 	// Если установлено в 1 - то заряжена, если в 0 то разряженна ( соответственно некорректная дата и время )
 } cmos_reg_d_bits_e;
 
+#include "types.h"
+
+void cmos_write_reg(byte reg, byte val);
+
+byte cmos_read_reg(byte reg);
+
+bool cmos_update_in_progress();
+
+void show_rtc_time();
+
+byte read_rtc_seconds();
+
 #endif

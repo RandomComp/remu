@@ -58,7 +58,7 @@ emulator: $(EMULATOR_OBJFILES)
 obj/emulator/%.o: %.c
 	@mkdir -p $(dir $@)
 
-	@gcc -Iinclude -Iemulator/include -Wall -Wpedantic -o $@ -c $^
+	@gcc -Iinclude -Iemulator/include -o $@ -c $^
 
 obj/emulator/%.o: %.s
 	@mkdir -p $(dir $@)

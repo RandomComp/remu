@@ -11,9 +11,9 @@
 
 #include <time.h>
 
-#include "cpu/emulator_cpu.h"
+#include "emulator.h"
 
-extern cpu_t* cpu;
+extern emulator_t* emulator;
 
 #include "main.h"
 #endif
@@ -22,10 +22,10 @@ void halt() {
 	#ifdef FREE_STANDING_MODE
 	asm volatile("hlt");
 	#elifdef IS_UNIX
-	set_halt(cpu);
-	usleep(cpu->halted_frametime_ns / (time_t)1000);
+	set_halt(emulator->cpu);
+	usleep(emulator->cpu->halted_frametime_ns / (time_t)1000);
 	#elifdef IS_WIN
-	set_halt(cpu);
-	Sleep(halted_frametime_ns / (time_t)1000000);
+	set_halt(emulator->cpu);
+	Sleep(emulator->cpu->halted_frametime_ns / (time_t)1000000);
 	#endif
 }

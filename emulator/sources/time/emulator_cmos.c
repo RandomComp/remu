@@ -6,45 +6,47 @@
 
 #include <time.h>
 
+#include "emulator_io.h"
+
 #include "main.h"
 
 #include "bcd.h"
 
 #include "time/time.h"
 
-static byte reg = 0;
+static byte attrib_reg = 0;
 
 static cmos_t* cur = nullptr;
 
 static time_t gmtoff = 0;
 
 static void cmos_reg(_size_t _reg) {
-	reg = _reg & 0xFF;
+	attrib_reg = _reg & 0xFF;
 }
 
 static _size_t cmos_get_reg() {
-	return reg;
+	return attrib_reg;
 }
 
 static void cmos_write(_size_t data) {
 	if (!cur) return;
 
-	bool is_reg = 	reg == CMOS_REGISTER_A  || reg == CMOS_REGISTER_B || 
-					reg == CMOS_REGISTER_C 	|| reg == CMOS_REGISTER_D;
+	bool is_reg = 	attrib_reg == CMOS_REGISTER_A  || attrib_reg == CMOS_REGISTER_B || 
+					attrib_reg == CMOS_REGISTER_C 	|| attrib_reg == CMOS_REGISTER_D;
 
-	if (reg == CMOS_REGISTER_A) {
+	if (attrib_reg == CMOS_REGISTER_A) {
 		cur->reg_a = data & 0xFF;
 	}
 
-	else if (reg == CMOS_REGISTER_B) {
+	else if (attrib_reg == CMOS_REGISTER_B) {
 		cur->reg_b = data & 0xFF;
 	}
 
-	else if (reg == CMOS_REGISTER_C) {
+	else if (attrib_reg == CMOS_REGISTER_C) {
 		cur->reg_c = data & 0xFF;
 	}
 
-	else if (reg == CMOS_REGISTER_D) {
+	else if (attrib_reg == CMOS_REGISTER_D) {
 		cur->reg_d = data & 0xFF;
 	}
 
@@ -52,31 +54,31 @@ static void cmos_write(_size_t data) {
 
 	struct_time_t rtc_time = struct_time_from_unix_time(cur->unix_time);
 
-	if (reg == CMOS_RTC_SECONDS) {
+	if (attrib_reg == CMOS_RTC_SECONDS) {
 		rtc_time.second = data % 60;
 	}
 
-	else if (reg == CMOS_RTC_MINUTES) {
+	else if (attrib_reg == CMOS_RTC_MINUTES) {
 		rtc_time.minute = data % 60;
 	}
 
-	else if (reg == CMOS_RTC_HOURS) {
+	else if (attrib_reg == CMOS_RTC_HOURS) {
 		rtc_time.hour = (data % 24) - gmtoff;
 	}
 
-	else if (reg == CMOS_RTC_DAY_OF_WEEK) {
+	else if (attrib_reg == CMOS_RTC_DAY_OF_WEEK) {
 		rtc_time.day_of_week = data % 7;
 	}
 
-	else if (reg == CMOS_RTC_DAY_OF_MONTH) {
+	else if (attrib_reg == CMOS_RTC_DAY_OF_MONTH) {
 		rtc_time.month = data % 12;
 	}
 
-	else if (reg == CMOS_RTC_YEARS) {
+	else if (attrib_reg == CMOS_RTC_YEARS) {
 		rtc_time.year = data % 100;
 	}
 
-	else if (reg == CMOS_RTC_CENTURY) {
+	else if (attrib_reg == CMOS_RTC_CENTURY) {
 		rtc_time.year += data * 100;
 	}
 
@@ -88,21 +90,21 @@ static _size_t cmos_read() {
 
 	_ssize_t reg_val = -1;
 
-	if (reg == CMOS_REGISTER_A) {
+	if (attrib_reg == CMOS_REGISTER_A) {
 		reg_val = (_ssize_t)cur->reg_a;
 	}
 
-	else if (reg == CMOS_REGISTER_B) {
+	else if (attrib_reg == CMOS_REGISTER_B) {
 		reg_val = (_ssize_t)cur->reg_b;
 	}
 
-	else if (reg == CMOS_REGISTER_C) {
+	else if (attrib_reg == CMOS_REGISTER_C) {
 		cur->reg_c = 0;
 
 		reg_val = (_ssize_t)cur->reg_c;
 	}
 
-	else if (reg == CMOS_REGISTER_D) {
+	else if (attrib_reg == CMOS_REGISTER_D) {
 		reg_val = (_ssize_t)cur->reg_d;
 	}
 
@@ -114,15 +116,15 @@ static _size_t cmos_read() {
 
 	struct_time_t struct_time = struct_time_from_unix_time(cur->unix_time);
 
-	if (reg == CMOS_RTC_SECONDS) {
+	if (attrib_reg == CMOS_RTC_SECONDS) {
 		result = struct_time.second;
 	}
 
-	else if (reg == CMOS_RTC_MINUTES) {
+	else if (attrib_reg == CMOS_RTC_MINUTES) {
 		result = struct_time.minute;
 	}
 
-	else if (reg == CMOS_RTC_HOURS) {
+	else if (attrib_reg == CMOS_RTC_HOURS) {
 		result = struct_time.hour;
 
 		byte pm = result >= 12;
@@ -140,19 +142,19 @@ static _size_t cmos_read() {
 		return result;
 	}
 
-	else if (reg == CMOS_RTC_DAY_OF_WEEK) {
+	else if (attrib_reg == CMOS_RTC_DAY_OF_WEEK) {
 		result = struct_time.day_of_week;
 	}
 
-	else if (reg == CMOS_RTC_DAY_OF_MONTH) {
+	else if (attrib_reg == CMOS_RTC_DAY_OF_MONTH) {
 		result = struct_time.day_of_month;
 	}
 
-	else if (reg == CMOS_RTC_YEARS) {
+	else if (attrib_reg == CMOS_RTC_YEARS) {
 		result = struct_time.year % 100;
 	}
 
-	else if (reg == CMOS_RTC_CENTURY) {
+	else if (attrib_reg == CMOS_RTC_CENTURY) {
 		result = struct_time.year / 100;
 	}
 
@@ -180,7 +182,7 @@ static void update_cmos() {
 }
 
 cmos_t* init_cmos() {
-	emulator_log(true, LOG_SEVERITY_INFO, "CMOS initialization...\n\r");
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "CMOS initialization...\n");
 
 	cmos_t* cmos = malloc(sizeof(cmos_t));
 
@@ -202,27 +204,27 @@ cmos_t* init_cmos() {
 
 	cur = cmos;
 	
-	emulator_log(false, LOG_SEVERITY_INFO, "Setting up timer (1 hz) for CMOS updating...\n\r");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up timer (1 hz) for CMOS updating...\n");
 
-	setup_tick_timer(&update_cmos, 1000);
+	emulator_setup_tick_timer(nullptr, &update_cmos, 1000);
 
-	emulator_log(false, LOG_SEVERITY_INFO, "Setting up ports (0x70, 0x71) for CMOS...\n\r");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x70, 0x71) for CMOS...\n");
 
-	setup_port_out(0x70, &cmos_reg);
+	emulator_setup_port_out(0x70, &cmos_reg);
 
-	setup_port_in(0x70, &cmos_get_reg);
+	emulator_setup_port_in(0x70, &cmos_get_reg);
 
-	setup_port_out(0x71, &cmos_write);
+	emulator_setup_port_out(0x71, &cmos_write);
 
-	setup_port_in(0x71, &cmos_read);
+	emulator_setup_port_in(0x71, &cmos_read);
 
-	emulator_log(true, LOG_SEVERITY_OK, "CMOS initialization done!\n\r");
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "CMOS initialized\n");
 
 	return cmos;
 }
 
 void free_cmos(cmos_t* cmos) {
-	emulator_log(true, LOG_SEVERITY_INFO, "CMOS deinitialization...\n\r");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "CMOS deinitialization...\n");
 
 	if (cmos) free(cmos);
 
@@ -230,19 +232,41 @@ void free_cmos(cmos_t* cmos) {
 		cur = nullptr;
 	}
 
-	emulator_log(true, LOG_SEVERITY_OK, "CMOS deinitialization done!\n\r");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "CMOS deinitialized\n");
+}
+
+void reset_cmos(cmos_t* cmos) {
+	if (!cmos) return;
+
+	emulator_log(false, LOG_SEVERITY_INFO, "CMOS reseting...\n");
+
+	time_t cur_time = time(0);
+
+	gmtoff = get_gmtoff();
+
+	cmos->unix_time = cur_time + gmtoff;
+
+	cmos->reg_a = 0b010 << 4;
+
+	cmos->reg_b = 0b00000010;
+
+	cmos->reg_c = 0b00000000;
+
+	cmos->reg_d = 0b10000000;
+
+	emulator_log(false, LOG_SEVERITY_INFO, "CMOS reseted\n");
 }
 
 void release_all_cmos() {
-	release_tick_timer(update_cmos);
+	emulator_release_tick_timer(nullptr, update_cmos);
 
-	release_port_out(0x70);
+	emulator_release_port_out(0x70);
 
-	release_port_in(0x70);
+	emulator_release_port_in(0x70);
 
-	release_port_out(0x71);
+	emulator_release_port_out(0x71);
 
-	release_port_in(0x71);
+	emulator_release_port_in(0x71);
 
 	if (cur) free(cur);
 
