@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "Linux",
-            "includePath": ["${workspaceFolder}/**"],
+            "includePath": ["${workspaceFolder}/**", "/usr/include/SDL2"],
             "defines": [
                 "_GNU_SOURCE",
                 "__linux__"

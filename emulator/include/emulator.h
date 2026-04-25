@@ -13,17 +13,15 @@
 
 #include "power/emulator_power_control.h"
 
-#include "emulator_multiboot.h"
+#include "multiboot.h"
 
 #include "emulator_io.h"
 
+#include "emulator_fwd.h"
+
 #include "types.h"
 
-#define FRAMETIME_NS (1000 * 1000 * 20)
-
-#define HALTED_FRAMETIME_NS (1000 * 1000 * 200)
-
-#define TICK_TIMERS_SIZE_STEP (4)
+#include <pthread.h>
 
 typedef void (*tick_timer_handler_t)();
 
@@ -35,7 +33,25 @@ typedef struct tick_timer_t {
 	tick_timer_handler_t handler;
 } tick_timer_t;
 
-typedef struct emulator_t {
+#define FRAMETIME_NS (1000 * 1000 * 20)
+
+#define HALTED_FRAMETIME_NS (1000 * 1000 * 200)
+
+#define TICK_TIMERS_SIZE_STEP (4)
+
+#define EMULATOR_VERSION_STR "beta 0.0.6"
+
+#define EMULATOR_VERSION_FULL_STR EMULATOR_VERSION_STR " (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " %i.%i " PLATFORM_ARCH
+
+#define EMULATOR_INFO_FULL_STR "OS Emulator (GPL V3.0) " EMULATOR_VERSION_FULL_STR " by RDev."
+
+#define EMULATOR_INFO_STR "OS Emulator " EMULATOR_VERSION_STR " by RDev"
+
+#ifdef EMULATOR_SDL_USING
+#include <SDL2/SDL.h>
+#endif
+
+struct emulator_t {
 	cpu_t* cpu;
 
 	ram_t* ram;
@@ -57,15 +73,27 @@ typedef struct emulator_t {
 	uint64 emulator_start_time;
 
 	bool is_hardware_reseting;
-} emulator_t;
 
-#define EMULATOR_VERSION_STR "beta 0.0.5"
+	bool gui;
 
-#define EMULATOR_VERSION_FULL_STR EMULATOR_VERSION_STR " (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " " PLATFORM_ARCH
+	bool running;
 
-#define EMULATOR_INFO_FULL_STR "OS Emulator (GPL V3.0) " EMULATOR_VERSION_FULL_STR " by RDev."
+	multiboot_info_t* multiboot_info;
 
-#define EMULATOR_INFO_STR "OS Emulator " EMULATOR_VERSION_STR " by RDev"
+	pthread_t kmain_thread;
+
+	#ifdef EMULATOR_SDL_USING
+	SDL_Window* window;
+
+	SDL_Renderer* renderer;
+
+	SDL_Texture* screen_texture;
+
+	uint32* screen;
+
+	size_t screen_width; size_t screen_height;
+	#endif
+};
 
 void emulator_setup_tick_timer(emulator_t* emulator, tick_timer_handler_t handler, _time_t ms);
 
@@ -73,13 +101,13 @@ void emulator_release_tick_timer(emulator_t* emulator, tick_timer_handler_t hand
 
 void reset_emulator(emulator_t* emulator, int code);
 
-void run_emulator(emulator_t* emulator, void (*kmain)(uint32 magic, multiboot_info_t* multiboot));
+pthread_t run_emulator(emulator_t* emulator, void (*kmain)(uint32 magic, multiboot_info_t* multiboot));
 
 void emulator_forced_update_all_timers(emulator_t* emulator);
 
 void emulator_update_all(emulator_t* emulator);
 
-emulator_t* init_emulator(_ssize_t columns, _ssize_t rows, uint64 frametime_ns, uint64 halted_frametime_ns);
+emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 frametime_ns, uint64 halted_frametime_ns);
 
 void free_emulator(emulator_t* emulator);
 

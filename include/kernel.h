@@ -3,6 +3,8 @@
 
 #include "types.h"
 
-void kmain(uint32 magic, void* ptr);
+#include "multiboot.h"
+
+void kmain(uint32 magic, multiboot_info_t* ptr);
 
 #endif

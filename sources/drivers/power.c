@@ -6,7 +6,7 @@
 
 //#include "../include/acpi.h"
 
-void shutdown(void) {
+void poweroff(void) {
 	// Shutdown for real pc
 
 	// ACPIInit(); // Init ACPI

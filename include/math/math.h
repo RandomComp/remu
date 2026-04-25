@@ -38,138 +38,95 @@ int64 pow64(int64 a, int64 b);
 _size_t powU32(_size_t a, _size_t b);
 uint64 powU64(uint64 a, uint64 b);
 
-static inline _size_t minU32(_size_t a, _size_t b) {
-	return MIN(a, b);
-}
+static inline double _trunc(double x) {
+	if (x != x || x == 0.0 || x == 1.0/0.0 || x == -1.0/0.0)
+		return x;
 
-static inline uint64 minU64(uint64 a, uint64 b) {
-	return MIN(a, b);
-}
+	union {
+		double d;
+		uint64 u;
+	} converter;
 
-static inline int32 min32(int32 a, int32 b) {
-	return MIN(a, b);
-}
+	converter.d = x;
 
-static inline int64 min64(int64 a, int64 b) {
-	return MIN(a, b);
-}
+	uint64 sign_bit = converter.u >> 63;
+	uint64 exponent = (converter.u >> 52) & 0x7FF;
+	uint64 mantissa = converter.u & 0xFFFFFFFFFFFFF;
 
-static inline float nblk__fmin(float a, float b) {
-	return MIN(a, b);
-}
+	int exp_bias = 1023;
+	int real_exp = exponent - exp_bias;
 
-static inline double min(double a, double b) {
-	return MIN(a, b);
-}
+	if (real_exp < 0)
+		return 0.0;
 
-static inline _size_t maxU32(_size_t a, _size_t b) {
-	return MAX(a, b);
-}
+	if (real_exp >= 52)
+		return x;
 
-static inline uint64 maxU64(uint64 a, uint64 b) {
-	return MAX(a, b);
-}
+	uint64 mask = (1ULL << (52 - real_exp)) - 1;
 
-static inline int32 max32(int32 a, int32 b) {
-	return MAX(a, b);
-}
+	mantissa &= ~mask;
 
-static inline int64 max64(int64 a, int64 b) {
-	return MAX(a, b);
-}
+	converter.u = (sign_bit << 63) | ((uint64)exponent << 52) | mantissa;
 
-static inline float nblk__fmax(float a, float b) {
-	return MAX(a, b);
-}
-
-static inline double max(double a, double b) {
-	return MAX(a, b);
-}
-
-static inline _size_t clampU32(_size_t x, _size_t min, _size_t max) {
-	return CLAMP(x, min, max);
-}
-
-static inline uint64 clampU64(uint64 x, uint64 min, uint64 max) {
-	return CLAMP(x, min, max);
-}
-
-static inline int32 clamp32(int32 x, int32 min, int32 max) {
-	return CLAMP(x, min, max);
-}
-
-static inline int64 clamp64(int64 x, int64 min, int64 max) {
-	return CLAMP(x, min, max);
-}
-
-static inline float fclamp(float x, float min, float max) {
-	return CLAMP(x, min, max);
-}
-
-static inline double clamp(double x, double min, double max) {
-	return CLAMP(x, min, max);
-}
-
-static inline bool inRangeU8(uint8 x, uint8 min, uint8 max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRangeU16(uint16 x, uint16 min, uint16 max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRangeU32(_size_t x, _size_t min, _size_t max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRangeU64(uint64 x, uint64 min, uint64 max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRange8(int8 x, int8 min, int8 max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRange16(int16 x, int16 min, int16 max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRange32(int32 x, int32 min, int32 max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRange64(int64 x, int64 min, int64 max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool finRange(float x, float min, float max) {
-	return INRANGE(x, min, max);
-}
-
-static inline bool inRange(double x, double min, double max) {
-	return INRANGE(x, min, max);
-}
-
-static inline double trunc(double x) {
-	return x;
+	return converter.d;
 }
 
 static inline float ftrunc(float x) {
-	return x;
+	if (x != x)						return x;	// NaN
+	if (x == 0.0f || x == -0.0f)	return x;	// ±0
+	if (x == 1.0f / 0.0f)			return x;	// +∞
+	if (x == -1.0f / 0.0f)			return x;	// -∞
+
+	union {
+		float f;
+		uint32 u;
+	} converter;
+	converter.f = x;
+
+	uint32 sign_bit = converter.u >> 31;
+	uint32 exponent = (converter.u >> 23) & 0xFF;
+	uint32 mantissa = converter.u & 0x7FFFFF;
+
+	int exp_bias = 127;
+	int real_exp = (int)exponent - exp_bias;
+
+	if (real_exp < 0) {
+		return 0.0f * x;
+	}
+
+	if (real_exp >= 23) {
+		return x;
+	}
+
+	int bits_to_keep = real_exp + 1;
+
+	int bits_to_zero = 23 - bits_to_keep;
+
+	if (bits_to_zero > 0) {
+		uint32 mask = (1U << bits_to_zero) - 1;
+
+		mantissa &= ~mask;
+	}
+
+	else mantissa = 0;
+
+	converter.u = (sign_bit << 31) | (exponent << 23) | mantissa;
+
+	return converter.f;
 }
 
-#define MOD(a, b) ((a) - (trunc((a) / (b)) * (b)))
+#define MOD(a, b) ((a) - (_trunc((a) / (b)) * (b)))
 
 #define FMOD(a, b) ((a) - (ftrunc((a) / (b)) * (b)))
 
 #define GET_FIRST_DIGIT(x) (uint8)(MOD(ABS(x), 10))
 
 static inline double frac(double x) {
-	return x - trunc(x);
+	return x - _trunc(x);
 }
 
 static inline float ffrac(float x) {
-	return x - trunc(x);
+	return x - _trunc(x);
 }
 
 static inline uint8 fgetFirstNumberAfterDecimalPoint(float x) {
@@ -182,7 +139,7 @@ static inline uint8 getFirstNumberAfterDecimalPoint(double x) {
 
 double mod(double a, double b);
 
-float nblk__fmod(float a, float b);
+float _fmod(float a, float b);
 
 uint8 fgetCountDecimalPlaces(float x);
 
@@ -201,15 +158,15 @@ static inline int64 scaleToInteger(double x) {
 }
 
 static inline bool isPowerOfTwoU32(_size_t x) {
-	return x > 0 && (x & (x - 1) == 0);
+	return x > 0 && ((x & (x - 1)) == 0);
 }
 
 _size_t align_down(_size_t x, _size_t align);
 
 _size_t align_up(_size_t x, _size_t align);
 
-static inline double nblk__floor(double x) {
-	double result = trunc(x);
+static inline double _floor(double x) {
+	double result = _trunc(x);
 
 	if (x < 0 && (frac(x) != 0))
 		result -= 1;
@@ -217,8 +174,8 @@ static inline double nblk__floor(double x) {
 	return result;
 }
 
-static inline double nblk__ceil(double x) {
-	double result = trunc(x);
+static inline double _ceil(double x) {
+	double result = _trunc(x);
 
 	if (x > 0 && (frac(x) != 0))
 		result += 1;
@@ -226,11 +183,11 @@ static inline double nblk__ceil(double x) {
 	return result;
 }
 
-static inline double round(double x) {
+static inline double _round(double x) {
 	if (x < 0)
-		return  frac(x) >= 0.5 ? nblk__floor(x) : nblk__ceil(x);
+		return  frac(x) >= 0.5 ? _floor(x) : _ceil(x);
 
-	return      frac(x) >= 0.5 ? nblk__ceil(x) : nblk__floor(x);
+	return      frac(x) >= 0.5 ? _ceil(x) : _floor(x);
 }
 
 static inline float ffloor(float x) {
@@ -259,9 +216,3 @@ static inline float fround(float x) {
 }
 
 #endif
-
-#define fmin(a, b) 	nblk__fmin(a, b)
-#define fmax(a, b) 	nblk__fmax(a, b)
-#define fmod(a, b) 	nblk__fmod(a, b)
-#define ceil(x) 	nblk__ceil(x)
-#define floor(x)	nblk__floor(x)

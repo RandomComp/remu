@@ -56,7 +56,7 @@ double mod(double a, double b) {
 	return MOD(a, b);
 }
 
-float nblk__fmod(float a, float b) {
+float _fmod(float a, float b) {
 	if (b == 0.0f) {
 		// throw(ERROR_DIVISION_BY_ZERO);
 

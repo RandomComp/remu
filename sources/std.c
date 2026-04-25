@@ -60,7 +60,7 @@ void putch(byte c) {
 			cur_x += 1;
 	}
 
-	cur_pos = (cur_y * columns) + cur_x;
+	cur_pos = CLAMP((cur_y * columns) + cur_x, 0, columns * rows);
 
 	set_cursor_pos(cur_pos % columns, cur_pos / columns);
 
@@ -165,7 +165,11 @@ void kprintf(const c_str format, ...) {
 
 		c = format + i;
 
-		putch(*c);
+		if (*c == '\n') {
+			putch('\n'); putch('\r');
+		}
+
+		else putch(*c);
 	}
 
 	va_end(list);
@@ -183,12 +187,24 @@ _size_t get_num_digits(_ssize_t num, _size_t base) {
 	return MAX(result, 1);
 }
 
+bool _isupper(char c) {
+	return (c >= 'A' && c <= 'Z');
+}
+
+bool _islower(char c) {
+	return (c >= 'a' && c <= 'z');
+}
+
+bool _isalpha(char c) {
+	return _islower(c) || _isupper(c);
+}
+
 char upper(char c) {
-	return (c >= 'a' && c <= 'z') ? (c - 'a' + 'A') : c;
+	return _islower(c) ? (c - 'a' + 'A') : c;
 }
 
 char lower(char c) {
-	return (c >= 'A' && c <= 'Z') ? (c - 'A' + 'a') : c;
+	return _isupper(c) ? (c - 'A' + 'a') : c;
 }
 
 const char num_alphabet[] = 
@@ -197,12 +213,12 @@ const char num_alphabet[] =
 	"KLMNOPQRST"
 	"UVWXYZ";
 
-const _size_t alphabet_size = sizeof(num_alphabet);
-
 static _ssize_t ch_index_in_alphabet(char c, const c_str alphabet, _size_t alphabet_size) {
 	if (alphabet == nullptr || alphabet_size == 0) {
 		kprint("Check char in alphabet failure: "
-				"alphabet is nullptr or alphabet_size = 0\n\r"); return;
+				"alphabet is nullptr or alphabet_size = 0\n\r");
+		
+		return -1;
 	}
 
 	for (_size_t i = 0; i < alphabet_size; i++) {
@@ -248,20 +264,22 @@ ErrorCode parse_hex(byte* result, _size_t res_size, const c_str str) {
 
 		result[byte_index] += index << (bit_index % 8);
 	}
+
+	return CODE_OK;
 }
 
-uintmax_t parse_num(const c_str str, uintmax_t radix) {
+_uintmax_t parse_num(const c_str str, _uintmax_t radix) {
 	if (str == nullptr) {
 		kprint("Number parse failure: str is nullptr\n"); return CODE_FAIL;
 	}
 
-	if (radix <= 1 || radix >= alphabet_size) {
+	if (radix <= 1 || radix >= strlen(num_alphabet)) {
 		kprint("Number parse failure: radix would be in 2...35\n");
 
 		return CODE_FAIL;
 	}
 
-	uintmax_t result = 0;
+	_uintmax_t result = 0;
 
 	_size_t digit_cnt = 0;
 
@@ -302,10 +320,10 @@ void print_hex(byte* num, _size_t size) {
 void print_num(_size_t num, _size_t base) {
 	if (!vidmem) return;
 
-	if (base <= 0 || base >= alphabet_size) {
+	if (base <= 0 || base >= strlen(num_alphabet)) {
 		kprint("Base should be in range 2...");
 
-		print_num(alphabet_size - 1, 10);
+		print_num(strlen(num_alphabet) - 1, 10);
 
 		kprint(", not ");
 

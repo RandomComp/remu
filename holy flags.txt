@@ -1,0 +1,1 @@
+-Wall -Wextra -Wpedantic -Wshadow -Wpointer-arith -Wcast-align -Wno-missing-prototypes -Wno-strict-prototypes -Wformat=2 -Winit-self -Wmissing-field-initializers

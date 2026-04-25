@@ -9,6 +9,8 @@
 
 #define PACKED __attribute__((packed))
 
+#define UNUSED __attribute__((unused))
+
 #define INT8_MIN (int8)(0x80)
 
 #define INT16_MIN (int16)(0x8000)
@@ -117,23 +119,29 @@ typedef enum ErrorCode {
 #define PLATFORM_RISC_V
 #endif
 
-#if (defined(__GNUC__) || defined(__GNUC_MINOR__) || defined(__GNUC_PATCHLEVEL__))
-#define PLATFORM_COMPILER_NAME "GCC"
-#elif (defined(__clang__))
+#if (defined(__clang__))
 #define PLATFORM_COMPILER_NAME "Clang"
-#elif (defined(_MSC_VER))
-#define PLATFORM_COMPILER_NAME "MSVC"
+#define PLATFORM_COMPILER_VERSION_MINOR __clang_minor__
+#define PLATFORM_COMPILER_VERSION_MAJOR __clang_major__
 #elif (defined(__INTEL_COMPILER))
 #define PLATFORM_COMPILER_NAME "Intel compiler"
+#define PLATFORM_COMPILER_VERSION_MINOR (__INTEL_COMPILER % 100)
+#define PLATFORM_COMPILER_VERSION_MAJOR (__INTEL_COMPILER / 100)
 #elif (defined(__MINGW32__) || defined(__MINGW64__))
 #define PLATFORM_COMPILER_NAME "MINGW"
+#define PLATFORM_COMPILER_VERSION_MINOR __GNUC_MINOR__
+#define PLATFORM_COMPILER_VERSION_MAJOR __GNUC__
+#elif (defined(__GNUC__) || defined(__GNUC_MINOR__) || defined(__GNUC_PATCHLEVEL__))
+#define PLATFORM_COMPILER_NAME "GCC"
+#define PLATFORM_COMPILER_VERSION_MINOR __GNUC_MINOR__
+#define PLATFORM_COMPILER_VERSION_MAJOR __GNUC__
+#elif (defined(_MSC_VER))
+#define PLATFORM_COMPILER_NAME "MSVC"
+#define PLATFORM_COMPILER_VERSION_MINOR (_MSC_VER / 100)
+#define PLATFORM_COMPILER_VERSION_MAJOR (_MSC_VER % 100)
 #endif
 
-#ifdef __STDC_HOSTED__
-	#if __STDC_HOSTED__ == 0
-		#define FREE_STANDING_MODE
-	#endif
-#else
+#if !defined(__STDC_HOSTED__) || __STDC_HOSTED__ == 0
 	#define FREE_STANDING_MODE
 #endif
 
@@ -170,17 +178,17 @@ typedef signed short int16;
 	typedef uint64 qword;
 #endif
 
-#ifdef BITS_16
+#if defined(BITS_16)
 
 typedef uint16 _size_t;
 typedef int16 _ssize_t;
 
-#elifdef BITS_32
+#elif defined(BITS_32)
 
 typedef uint32 _size_t;
 typedef int32 _ssize_t;
 
-#elifdef BITS_64
+#elif defined(BITS_64)
 
 typedef uint64 _size_t;
 typedef int64 _ssize_t;
@@ -188,14 +196,6 @@ typedef int64 _ssize_t;
 #endif
 
 typedef _size_t word;
-
-typedef _ssize_t sword;
-
-typedef uint8 uint8_t;
-typedef uint16 uint16_t;
-
-typedef int8 int8_t;
-typedef int16 int16_t;
 
 typedef char* c_str;
 
@@ -205,15 +205,21 @@ typedef _Bool bool;
 
 typedef uint8 byte;
 
-typedef int8 intmin_t;
-typedef int64 intmax_t;
+typedef int8 _intmin_t;
+typedef int64 _intmax_t;
 
-typedef uint8 uintmin_t;
-typedef uint64 uintmax_t;
+typedef uint8 _uintmin_t;
+typedef uint64 _uintmax_t;
 
 typedef _ssize_t _time_t;
 
 #define static_assert _Static_assert
+
+#undef va_start
+#undef va_end
+#undef va_arg
+#undef va_copy
+#undef va_list
 
 #define va_start(PTR, LASTARG)  __builtin_va_start(PTR, LASTARG)
 #define va_end(PTR)             __builtin_va_end(PTR)

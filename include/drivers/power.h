@@ -1,7 +1,7 @@
 #ifndef _POWER_H
 #define _POWER_H
 
-void shutdown(void);
+void poweroff(void);
 
 void reboot(void);
 

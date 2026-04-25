@@ -2,9 +2,7 @@
 
 #include "std.h"
 
-extern void* ram;
-
-void display_multiboot(uint32 magic, multiboot_info_t* multiboot) {
+void display_multiboot(void* ram, uint32 magic, multiboot_info_t* multiboot) {
 	bool is_fb_available = (multiboot->flags & 0x1000) != 0;
 
 	bool is_vbe_available = (multiboot->flags & 0x800) != 0;

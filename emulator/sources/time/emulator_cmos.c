@@ -6,7 +6,11 @@
 
 #include <time.h>
 
+#include "emulator.h"
+
 #include "emulator_io.h"
+
+#include "emulator_logger.h"
 
 #include "main.h"
 
@@ -182,7 +186,7 @@ static void update_cmos() {
 }
 
 cmos_t* init_cmos() {
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "CMOS initialization...\n");
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "CMOS initialization...");
 
 	cmos_t* cmos = malloc(sizeof(cmos_t));
 
@@ -204,11 +208,11 @@ cmos_t* init_cmos() {
 
 	cur = cmos;
 	
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up timer (1 hz) for CMOS updating...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up timer (1 hz) for CMOS updating...");
 
-	emulator_setup_tick_timer(nullptr, &update_cmos, 1000);
+	emulator_setup_tick_timer(nullptr, update_cmos, 1000);
 
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x70, 0x71) for CMOS...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x70, 0x71) for CMOS...");
 
 	emulator_setup_port_out(0x70, &cmos_reg);
 
@@ -218,13 +222,13 @@ cmos_t* init_cmos() {
 
 	emulator_setup_port_in(0x71, &cmos_read);
 
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "CMOS initialized\n");
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "CMOS initialized");
 
 	return cmos;
 }
 
 void free_cmos(cmos_t* cmos) {
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "CMOS deinitialization...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "CMOS deinitialization...");
 
 	if (cmos) free(cmos);
 
@@ -232,13 +236,13 @@ void free_cmos(cmos_t* cmos) {
 		cur = nullptr;
 	}
 
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "CMOS deinitialized\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "CMOS deinitialized");
 }
 
 void reset_cmos(cmos_t* cmos) {
 	if (!cmos) return;
 
-	emulator_log(false, LOG_SEVERITY_INFO, "CMOS reseting...\n");
+	emulator_log(false, LOG_SEVERITY_INFO, "CMOS reseting...");
 
 	time_t cur_time = time(0);
 
@@ -254,7 +258,7 @@ void reset_cmos(cmos_t* cmos) {
 
 	cmos->reg_d = 0b10000000;
 
-	emulator_log(false, LOG_SEVERITY_INFO, "CMOS reseted\n");
+	emulator_log(false, LOG_SEVERITY_INFO, "CMOS reseted");
 }
 
 void release_all_cmos() {

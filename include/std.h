@@ -15,13 +15,19 @@ void kprintf(const c_str format, ...);
 
 _size_t get_num_digits(_ssize_t num, _size_t base);
 
+bool _isalpha(char c);
+
+bool _isupper(char c);
+
+bool _islower(char c);
+
 char upper(char c);
 
 char lower(char c);
 
 ErrorCode parse_hex(byte* result, _size_t res_size, const c_str str);
 
-uintmax_t parse_num(const c_str str, uintmax_t radix);
+_uintmax_t parse_num(const c_str str, _uintmax_t radix);
 
 void print_hex(byte* num, _size_t size);
 

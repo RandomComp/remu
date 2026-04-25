@@ -21,10 +21,10 @@ extern emulator_t* emulator;
 void halt() {
 	#ifdef FREE_STANDING_MODE
 	asm volatile("hlt");
-	#elifdef IS_UNIX
+	#elif defined(IS_UNIX)
 	set_halt(emulator->cpu);
 	usleep(emulator->cpu->halted_frametime_ns / (time_t)1000);
-	#elifdef IS_WIN
+	#elif defined(IS_WIN)
 	set_halt(emulator->cpu);
 	Sleep(emulator->cpu->halted_frametime_ns / (time_t)1000000);
 	#endif

@@ -12,13 +12,21 @@
 
 #include "emulator.h"
 
-#include "emulator.h"
+#include "emulator_io.h"
+
+#include "emulator_logger.h"
+
+#include "math/math.h"
 
 #include <stdio.h>
 
 #include <stdlib.h>
 
 #include <string.h>
+
+#ifdef EMULATOR_SDL_USING
+#include <SDL2/SDL_image.h>
+#endif
 
 const c_str cp437[] = {
 	" ", "☺", "☻", "♥", "♦", "♣", 
@@ -74,12 +82,14 @@ static bool attrib_flip_trigger_flag = false;
 
 static byte attrib_reg = 0, display_vidmem = 0;
 
+extern emulator_t* emulator;
+
 static _size_t attrib_flip_trigger() {
 	if (!cur) return 0;
 
 	attrib_flip_trigger_flag = true;
 
-	emulator_log(false, LOG_SEVERITY_INFO, "Write addr/data flag triggered (0x3DA) for 0x3C0 in VGA text screen\n");
+	emulator_log(false, LOG_SEVERITY_INFO, "Write addr/data flag triggered (0x3DA) for 0x3C0 in VGA text screen");
 
 	return 0;
 }
@@ -94,7 +104,7 @@ static void attrib_reg_write(_size_t data) {
 
 		attrib_flip_trigger_flag = false;
 
-		emulator_log(false, LOG_SEVERITY_INFO, "Writed %llx as register to 0x3C0 (VGA text screen)\n\r", attrib_reg);
+		emulator_log(false, LOG_SEVERITY_INFO, "Writed %llx as register to 0x3C0 (VGA text screen)\r", attrib_reg);
 	}
 
 	else if (attrib_reg & 0x10) {
@@ -111,7 +121,7 @@ static void attrib_reg_write(_size_t data) {
 		
 		attrib_reg = 0;
 
-		emulator_log(false, LOG_SEVERITY_INFO, "Writed %llx as data to 0x3C0 (VGA text screen)\n\r", data);
+		emulator_log(false, LOG_SEVERITY_INFO, "Writed %llx as data to 0x3C0 (VGA text screen)\r", data);
 	}
 }
 
@@ -121,7 +131,7 @@ static _size_t attrib_reg_read() {
 	if (!attrib_flip_trigger_flag && attrib_reg == 0x10) {
 		attrib_reg = 0;
 
-		emulator_log(false, LOG_SEVERITY_INFO, "VGA text screen mode register readed (0x3C1)\n");
+		emulator_log(false, LOG_SEVERITY_INFO, "VGA text screen mode register readed (0x3C1)");
 
 		return cur->mode_reg;
 	}
@@ -154,7 +164,7 @@ static void crt_write_reg(_size_t data) {
 }
 
 static _size_t crt_read_reg() {
-	if (!cur) return;
+	if (!cur) return 0;
 
 	if (crt_reg == 0xA) {
 		return cur->cursor_pos & 0x0000FF00;
@@ -171,7 +181,7 @@ static _size_t crt_read_reg() {
 	return 0;
 }
 
-void update_cur_vga_screen() {
+static void update_cur_vga_screen() {
 	if (!cur) return;
 
 	draw_vga_text_screen(cur);
@@ -179,14 +189,92 @@ void update_cur_vga_screen() {
 
 static bool blinking_text_visible = false;
 
-void text_blink_update() {
+static void text_blink_update() {
 	blinking_text_visible = !blinking_text_visible;
 }
 
-vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t rows) {
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text screen initialization...\n");
+#ifdef EMULATOR_SDL_USING
+static byte* load_png_font(const char* file_name, size_t* w, size_t* h) {
+	if (!file_name) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot load png font: file_name is NULL");
+
+		return nullptr;
+	}
+
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "Loading cp437 font \"%s\"...", file_name);
+
+	int width = -1, height = -1;
+
+	SDL_Surface* temp = IMG_Load(file_name);
+
+	if (!temp) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot load png font: %s", SDL_GetError());
+
+		return nullptr;
+	}
+
+	SDL_Surface* temp2 = SDL_ConvertSurfaceFormat(temp, SDL_PIXELFORMAT_ARGB8888, 0);
+
+	SDL_FreeSurface(temp);
+
+	if (!temp2) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot load png font: %s", SDL_GetError());
+
+		return nullptr;
+	}
+
+	width = temp2->w;
+
+	height = temp2->h;
+
+	byte* font = malloc(width * height);
+
+	if (!font) {
+		SDL_FreeSurface(temp2);
+
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot load png font: cannot alloc array of pixels for font (malloc returned NULL)");
+
+		return nullptr;
+	}
+
+	memset(font, 0, width * height);
+
+	uint32* pixels = temp2->pixels;
+
+	for (size_t i = 0; i < width * height; i++) {
+		size_t index = i / 8; size_t bit_index = i % 8;
+
+		uint32 pixel = pixels[i];
+
+		uint32 r = pixel & 0xFF;
+
+		uint32 g = (pixel >> 8) & 0xFF;
+
+		uint32 b = (pixel >> 16) & 0xFF;
+
+		uint32 gray = (r + g + b) / 3;
+
+		if (gray >= 128) {
+			font[index] |= 1 << bit_index;
+		}
+	}
+
+	SDL_FreeSurface(temp2);
+
+	if (w) *w = width;
+
+	if (h) *h = height;
+
+	return font;
+}
+#endif
+
+vga_text_screen_t* init_vga_text_screen(uint32* screen, _size_t screen_width, _size_t screen_height, bool gui, ram_t* ram, _ssize_t columns, _ssize_t rows) {
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text screen initialization...");
 
 	size_t vidmem_size = columns * rows * sizeof(uint16);
+
+	uint64 vidmem_ram_addr = 0xB8000;
 
 	if (!ram || !ram->mem_ptr) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot initialize VGA because RAM is not initialized!"); 
@@ -194,42 +282,68 @@ vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t r
 		return nullptr;
 	}
 
-	if (ram->mem_size < (0xB8000 + vidmem_size)) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot initialize VGA because RAM is lower than vidmem address end %llx!", 0xB8000 + vidmem_size); 
+	if (ram->mem_size < (vidmem_ram_addr + vidmem_size)) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot initialize VGA because RAM is lower than vidmem address end %llx!", vidmem_ram_addr + vidmem_size); 
 		
 		return nullptr;
 	}
 
-	vga_text_screen_t* screen = malloc(sizeof(vga_text_screen_t));
+	vga_text_screen_t* vga = malloc(sizeof(vga_text_screen_t));
 
-	memset(screen, 0, sizeof(vga_text_screen_t));
+	memset(vga, 0, sizeof(vga_text_screen_t));
 
-	screen->vidmem = (uint16*)(ram->mem_ptr + 0xB8000);
+	vga->vidmem_ram_addr = vidmem_ram_addr;
 
-	screen->vidmem_ram_addr = 0xB8000;
+	vga->vidmem = (uint16*)(ram->mem_ptr + vga->vidmem_ram_addr);
 
-	screen->width = columns; screen->height = rows; screen->bpp = 2 * 8;
+	vga->width = columns; vga->height = rows; vga->bpp = 2 * 8;
 
-	screen->cursor_pos = 0;
+	vga->cursor_pos = 0;
 
-	screen->mode_reg = 0b00001000 | 0x20;
+	vga->mode_reg = 0b00001000 | 0x20;
 
-	screen->crt_reg_a = 0b00000000;
+	vga->crt_reg_a = 0b00000000;
+
+	vga->gui = gui;
+
+	#ifdef EMULATOR_SDL_USING
+
+	vga->emulator_screen = screen;
+
+	vga->emulator_screen_width = screen_width;
+
+	vga->emulator_screen_height = screen_height;
+
+	vga->font = load_png_font("cp437-8x16.png", &vga->font_width, &vga->font_height);
+
+	if (!vga->font) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot load emulator cp437 font");
+
+		free(vga);
+
+		free_emulator_logger();
+
+		imd_exit_emulator(1);
+
+		return nullptr;
+	}
+
+	#endif
 	
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA text screen mode register (no video mode): 0b%08b\n\r", screen->mode_reg);
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA text screen mode register (no video mode): 0b%08b\r", vga->mode_reg);
 	
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Clearing VGA text screen...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Clearing VGA text screen...");
 
-	clear_vga_text_screen(screen);
+	clear_vga_text_screen(vga);
 
-	cur = screen;
+	cur = vga;
 	
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up VGA screen update timer (33 hz) and text blinking timer (2 hz)...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up VGA screen update timer (33 hz) and text blinking timer (2 hz)...");
 
 	emulator_setup_tick_timer(nullptr, update_cur_vga_screen, 33);
 	emulator_setup_tick_timer(nullptr, text_blink_update, 500);
 	
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x3DA, 0x3C0, 0x3C1) for VGA...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x3DA, 0x3C0, 0x3C1) for VGA...");
 
 	emulator_setup_port_in(0x3DA, attrib_flip_trigger);
 	emulator_setup_port_out(0x3C0, attrib_reg_write);
@@ -239,11 +353,12 @@ vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t r
 	emulator_setup_port_out(0x3D5, crt_write_reg);
 	emulator_setup_port_in(0x3D5, crt_read_reg);
 	
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text screen initialized\n");
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text screen initialized");
 
-	printf(ansi_clear_screen);
+	if (!vga->gui)
+		printf(ansi_clear_screen);
 
-	return screen;
+	return vga;
 }
 
 void clear_vga_text_screen(vga_text_screen_t* screen) {
@@ -254,8 +369,128 @@ void clear_vga_text_screen(vga_text_screen_t* screen) {
 	}
 }
 
+#ifdef EMULATOR_SDL_USING
+int draw_vga_ch(vga_text_screen_t* vga, byte ch, bool bg_transparent, uint32 bg_color, uint32 fg_color, size_t column, size_t row) {
+	if (!vga || !vga->vidmem) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw character using uninitialized vga text screen device!");
 
-void draw_vga_text_screen(vga_text_screen_t* screen) {
+		return 1;
+	}
+
+	if (!vga->gui) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw character using non-gui vga text screen device!");
+
+		return 1;
+	}
+
+	size_t vga_grid_width = vga->emulator_screen_width / VGA_CHAR_WIDTH;
+	size_t vga_grid_height = vga->emulator_screen_height / VGA_CHAR_HEIGHT;
+
+	size_t screen_pos = column + (row * vga_grid_width);
+
+	if (screen_pos >= (vga_grid_width * vga_grid_height)) return 1;
+
+	column = screen_pos % vga_grid_width;
+
+	row = screen_pos / vga_grid_width;
+
+	size_t font_grid_width = vga->font_width / VGA_CHAR_WIDTH;
+
+	size_t screen_x = column * VGA_CHAR_WIDTH;
+	size_t screen_y = row * VGA_CHAR_HEIGHT;
+
+	size_t font_column = ch % font_grid_width;
+	size_t font_row = ch / font_grid_width;
+
+	for (size_t i = 0; i < VGA_CHAR_HEIGHT; i++) {
+		size_t index = (font_column * VGA_CHAR_WIDTH) + (((font_row * VGA_CHAR_HEIGHT) + i) * vga->font_width);
+
+		index /= 8;
+
+		byte column_pixels = cur->font[index];
+
+		for (size_t j = 0; j < VGA_CHAR_WIDTH; j++) {
+			bool bit_enabled = column_pixels & (1 << j);
+
+			size_t screen_index = screen_x + j + ((screen_y + i) * vga->emulator_screen_width);
+
+			if (!bg_transparent) {
+				vga->emulator_screen[screen_index] = bit_enabled ? fg_color : bg_color;
+			}
+
+			else if (bit_enabled) {
+				vga->emulator_screen[screen_index] = fg_color;
+			}
+		}
+	}
+
+	return 0;
+}
+
+int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
+	if (!vga || !vga->vidmem) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw uninitialized vga text screen device!");
+
+		return 1;
+	}
+
+	if (!vga->gui) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw character using non-gui vga text screen device!");
+
+		return 1;
+	}
+
+	const uint32 vga_color_to_rgb[] = {
+		[COLOR_BLACK] = 0x000000,
+		[COLOR_BLUE] = 0x000080,
+		[COLOR_GREEN] = 0x008000,
+		[COLOR_AQUA] = 0x008080,
+		[COLOR_RED] = 0x800000,
+		[COLOR_MAGENTA] = 0x800080,
+		[COLOR_BROWN] = 0xAA5000,
+		[COLOR_WHITE] = 0xC0C0C0,
+		[COLOR_BRIGHT_BLACK] = 0x404040,
+		[COLOR_BRIGHT_BLUE] = 0x0000FF,
+		[COLOR_BRIGHT_LIME] = 0x00FF00,
+		[COLOR_BRIGHT_AQUA] = 0x00FFFF,
+		[COLOR_BRIGHT_RED] = 0xFF0000,
+		[COLOR_BRIGHT_MAGENTA] = 0xFF00FF,
+		[COLOR_BRIGHT_YELLOW] = 0xFFFF00,
+		[COLOR_BRIGHT_WHITE] = 0xFFFFFF,
+	};
+
+	for (size_t i = 0; i < vga->width * vga->height; i++) {
+		uint16 ch_and_style = vga->vidmem[i];
+
+		byte ch = ch_and_style & 0xFF;
+
+		byte style = (ch_and_style >> 8) & 0xFF;
+
+		// COLOR_BLACK,
+		// COLOR_BLUE,
+		// COLOR_GREEN,
+		// COLOR_AQUA,
+		// COLOR_RED,
+		// COLOR_MAGENTA,
+		// COLOR_BROWN,
+		// COLOR_WHITE,
+		// COLOR_BRIGHT_BLACK,
+		// COLOR_BRIGHT_BLUE,
+		// COLOR_BRIGHT_LIME,
+		// COLOR_BRIGHT_AQUA,
+		// COLOR_BRIGHT_RED,
+		// COLOR_BRIGHT_MAGENTA,
+		// COLOR_BRIGHT_YELLOW,
+		// COLOR_BRIGHT_WHITE,
+
+		draw_vga_ch(vga, ch, false, 0, vga_color_to_rgb[style], i, 0);
+	}
+
+	return 0;
+}
+#endif
+
+void draw_vga_text_screen_cli(vga_text_screen_t* screen) {
 	if (!screen || !screen->vidmem) return;
 
 	_ssize_t columns, rows;
@@ -320,32 +555,60 @@ void draw_vga_text_screen(vga_text_screen_t* screen) {
 	// fflush(stdout);
 }
 
-void free_vga_text_screen(vga_text_screen_t* screen) {
-	if (!screen) return;
-
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA text screen deinitialization...\n");
-
-	screen->vidmem = nullptr;
-
-	free(screen);
+void draw_vga_text_screen(vga_text_screen_t* vga) {
+	if (!vga->gui) {
+		draw_vga_text_screen_cli(vga);
+	}
 	
-	if (cur == screen) cur = nullptr;
+	else {
+		#ifdef EMULATOR_SDL_USING
+		draw_vga_text_screen_gui(vga);
 
-	printf(default_style);
+		SDL_UpdateTexture(emulator->screen_texture, null, emulator->screen, emulator->screen_width * sizeof(uint32));
+		#endif
+	}
+}
 
-	printf(ansi_clear_screen);
+void free_vga_text_screen(vga_text_screen_t* vga) {
+	if (!vga) return;
 
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text screen deinitialized\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA text screen deinitialization...");
+
+	vga->vidmem = nullptr;
+
+	if (!vga->gui) {
+		printf(default_style);
+
+		printf(ansi_clear_screen);
+	}
+
+	#ifdef EMULATOR_SDL_USING
+	if (vga->font) {
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA font deinitialization...");
+
+		free(vga->font);
+
+		vga->font = nullptr;
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA font deinitialized!");
+	}
+	#endif
+
+	free(vga);
+	
+	if (cur == vga) cur = nullptr;
+
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text screen deinitialized");
 }
 
 void release_all_vga_text_screen(vga_text_screen_t* screen) {
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Releasing timer updating vga screen (33 hz) and text blinking timer (2 hz)...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Releasing timer updating vga screen (33 hz) and text blinking timer (2 hz)...");
 
 	emulator_release_tick_timer(nullptr, &update_cur_vga_screen);
 
 	emulator_release_tick_timer(nullptr, &text_blink_update);
 	
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Releasing VGA ports (0x3DA, 0x3C0, 0x3C1)...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Releasing VGA ports (0x3DA, 0x3C0, 0x3C1)...");
 
 	emulator_release_port_in(0x3DA);
 
@@ -359,60 +622,22 @@ void release_all_vga_text_screen(vga_text_screen_t* screen) {
 void reset_vga_text_screen(vga_text_screen_t* screen) {
 	if (!screen) return;
 
-	emulator_log(false, LOG_SEVERITY_INFO, "VGA text screen reseting...\n");
+	emulator_log(false, LOG_SEVERITY_INFO, "VGA text screen reseting...");
 
 	screen->mode_reg = 0b00001000 | 0x20;
 
 	memset(screen->vidmem, 0, screen->width * screen->height * sizeof(screen->vidmem[0]));
 
-	printf(default_style);
+	if (!screen->gui) {
+		printf(default_style);
 
-	printf(ansi_clear_screen);
+		printf(ansi_clear_screen);
+	}
 
-	emulator_log(false, LOG_SEVERITY_INFO, "VGA text screen reseted\n");
+	emulator_log(false, LOG_SEVERITY_INFO, "VGA text screen reseted");
 }
 
-// void vga_text_screen_apply_attribute(byte attribute) {
-// 	byte style_fg = attribute & 0xF;
-
-// 	byte style_bg = (attribute >> 4) & 0xF;
-	
-// 	bool bg_bright = style_bg & 8;
-
-// 	if (bg_bright && (cur->mode_reg & 0x8) != 0) {
-// 		printf(blink);
-// 	}
-
-// 	if (style_fg == COLOR_BRIGHT_WHITE) {
-// 		printf(bold white_fg);
-// 	}
-
-// 	if (style_fg == COLOR_BLACK) {
-// 		printf(bright_black_fg);
-// 	}
-
-// 	else if (style_fg == COLOR_BRIGHT_BLACK) {
-// 		printf(bold gray_fg);
-// 	}
-	
-// 	else {
-// 		printf("\x1B[38;5;%im", (int)style_fg);
-// 	}
-
-// 	if (style_bg == COLOR_BLACK) {
-// 		printf(bright_black_bg);
-// 	}
-
-// 	else if (style_bg == COLOR_BRIGHT_BLACK) {
-// 		printf(bold gray_bg);
-// 	}
-
-// 	else {
-// 		printf("\x1B[48;5;%im", (int)style_bg);
-// 	}
-// }
-
-void vga_text_screen_apply_attribute(byte attribute) {
+void vga_text_screen_apply_attribute_no_gui(byte attribute) {
 	byte style_fg = attribute & 0xF;
 	
 	bool fg_bright = style_fg & 8;
@@ -466,4 +691,11 @@ void vga_text_screen_apply_attribute(byte attribute) {
 	else {
 		printf("\x1B[%im", (int)ansi_code_bg + 10);
 	}
+}
+
+void vga_text_screen_apply_attribute(byte attribute) {
+	if (!cur) return;
+
+	if (!cur->gui)
+		vga_text_screen_apply_attribute_no_gui(attribute);
 }

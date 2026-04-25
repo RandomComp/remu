@@ -6,7 +6,7 @@ SECTIONS {
     . = LMA;
 
     .multiboot ALIGN (0x1000): {
-    	loader.o(.text)
+    	*loader.o(.text)
     }
 
     .text ALIGN (0x1000): {

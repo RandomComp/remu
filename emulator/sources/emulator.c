@@ -16,6 +16,8 @@
 
 #include "emulator_io.h"
 
+#include "emulator_logger.h"
+
 #include "utils.h"
 
 #include "main.h"
@@ -31,6 +33,12 @@
 #include <setjmp.h>
 
 #include <signal.h>
+
+#include <pthread.h>
+
+#ifdef EMULATOR_SDL_USING
+#include <SDL2/SDL.h>
+#endif
 
 #define EMULATOR_MULTIBOOT_NAME EMULATOR_INFO_STR
 
@@ -68,17 +76,19 @@ void emulator_release_tick_timer(emulator_t* _emulator, tick_timer_handler_t han
 
 	if (!_emulator && cur) emulator = cur;
 
-	if (!emulator) return;
+	if (!emulator || !emulator->tick_timers || !handler) return;
 
 	_ssize_t index = -1;
 
-	for (_size_t i = 0; i < emulator->tick_timers_cnt; i++) {
+	_size_t tick_timers_cnt = MIN(emulator->tick_timers_cnt, emulator->tick_timers_size);
+
+	for (_size_t i = 0; i < tick_timers_cnt; i++) {
 		if (emulator->tick_timers[i].handler == handler) {
 			index = i; break;
 		}
 	}
 
-	if (index) {
+	if (index >= 0) {
 		emulator->tick_timers[index] = (tick_timer_t){ 0 };
 	}
 }
@@ -127,12 +137,6 @@ void emulator_update_all(emulator_t* _emulator) {
 	emulator->ticks += (time_t)(cpu_get_itval_ns(emulator->cpu) / 1000000);
 }
 
-static void timer_handler(int sig) {
-	if (!cur) return;
-
-	emulator_update_all(cur);
-}
-
 static _size_t debug_read() {
 	return 0;
 }
@@ -141,12 +145,74 @@ static void debug_write(_size_t data) {
 	return;
 }
 
-emulator_t* init_emulator(_ssize_t columns, _ssize_t rows, uint64 frametime_ns, uint64 halted_frametime_ns) {
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "Emulator initialization...\n");
+emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 frametime_ns, uint64 halted_frametime_ns) {
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "Emulator initialization...");
 
 	emulator_t* emulator = malloc(sizeof(emulator_t));
 
 	memset(emulator, 0, sizeof(emulator_t));
+
+	if (gui) {
+		#ifdef EMULATOR_SDL_USING
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL window and renderer initialization...");
+
+		emulator->window = SDL_CreateWindow("OS Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, 0);
+
+		if (!emulator->window) {
+			emulator_log(true, LOG_SEVERITY_ERROR, "SDL window initialization error: %s", SDL_GetError());
+
+			free_emulator(emulator);
+			
+			return nullptr;
+		}
+
+		emulator->renderer = SDL_CreateRenderer(emulator->window, -1, SDL_RENDERER_ACCELERATED);
+		
+		if (!emulator->renderer) {
+			emulator_log(true, LOG_SEVERITY_ERROR, "SDL renderer initialization error: %s", SDL_GetError());
+
+			free_emulator(emulator);
+
+			return nullptr;
+		}
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL window and renderer initialized!");
+		
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture initialization (for drawing)...");
+
+		emulator->screen_width = 80 * 8;
+
+		emulator->screen_height = 25 * 16;
+
+		emulator->screen_texture = SDL_CreateTexture(emulator->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, emulator->screen_width, emulator->screen_height);
+
+		if (!emulator->screen_texture) {
+			emulator_log(true, LOG_SEVERITY_ERROR, "SDL texture initialization error: %s", SDL_GetError());
+
+			free_emulator(emulator);
+
+			return nullptr;
+		}
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture framebuffer initialization...");
+
+		emulator->screen = malloc(emulator->screen_width * emulator->screen_height * sizeof(uint32));
+
+		if (!emulator->screen) {
+			emulator_log(true, LOG_SEVERITY_ERROR, "SDL texture framebuffer initialization error");
+
+			free_emulator(emulator);
+
+			return nullptr;
+		}
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture framebuffer initialized!");
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture initialized!");
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL initialized!");
+		#endif
+	}
 
 	emulator->tick_timers = malloc(TICK_TIMERS_SIZE_STEP * sizeof(tick_timer_t));
 
@@ -155,6 +221,8 @@ emulator_t* init_emulator(_ssize_t columns, _ssize_t rows, uint64 frametime_ns, 
 	emulator->tick_timers_size = TICK_TIMERS_SIZE_STEP;
 
 	emulator->ticks = 0;
+
+	emulator->gui = gui;
 	
 	struct timespec ts;
 
@@ -166,15 +234,18 @@ emulator_t* init_emulator(_ssize_t columns, _ssize_t rows, uint64 frametime_ns, 
 
 	cur = emulator;
 
-	emulator->cpu = init_cpu(frametime_ns, halted_frametime_ns, &timer_handler);
+	emulator->cpu = init_cpu(frametime_ns, halted_frametime_ns);
 
 	emulator->ram = init_ram(8 * 1024 * 1024);
 
-	emulator->vga = init_vga_text_screen(emulator->ram, columns, rows);
+	emulator->vga = init_vga_text_screen(
+		emulator->screen, emulator->screen_width, emulator->screen_height, 
+		emulator->gui, emulator->ram, 80, 25
+	);
 
 	emulator->cmos = init_cmos();
 
-	emulator->kbdps2 = init_kbdps2();
+	emulator->kbdps2 = init_kbdps2(emulator->gui);
 
 	init_power_control();
 
@@ -182,18 +253,16 @@ emulator_t* init_emulator(_ssize_t columns, _ssize_t rows, uint64 frametime_ns, 
 
 	emulator_setup_port_out(0x80, debug_write);
 
-	emulator_log(true, LOG_SEVERITY_INFO, "Emulator initialized\n");
+	emulator_log(true, LOG_SEVERITY_INFO, "Emulator initialized");
 
 	emulator->is_hardware_reseting = false;
 
 	return emulator;
 }
 
-sigjmp_buf emulator_before_kmain_jmp_buf;
-
 // Code 0x20 if exit from OS using power command, or 0x40 if exit using user command
 void reset_emulator(emulator_t* emulator, int code) {
-	siglongjmp(emulator_before_kmain_jmp_buf, code);
+	emulator->running = false;
 }
 
 void init_emulator_multiboot(emulator_t* _emulator, multiboot_info_t* multiboot_info) {
@@ -242,64 +311,79 @@ void init_emulator_multiboot(emulator_t* _emulator, multiboot_info_t* multiboot_
 	}
 }
 
-void run_emulator(emulator_t* _emulator, void (*kmain)(uint32 magic, multiboot_info_t* multiboot)) {
-	if (!kmain) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot run the emulator because no kmain provided to run\n");
+struct kmain_start_args_t {
+	void (*kmain)(uint32 magic, multiboot_info_t* multiboot);
 
-		return;
+	uint32 magic;
+
+	multiboot_info_t* multiboot;
+};
+
+void* kmain_start(void* args) {
+	if (!cur) return nullptr;
+
+	struct kmain_start_args_t* start_args = (struct kmain_start_args_t*)args;
+
+	uint32 magic = start_args->magic;
+
+	multiboot_info_t* multiboot = start_args->multiboot;
+
+	void (*kmain)(uint32 magic, multiboot_info_t *multiboot) = start_args->kmain;
+
+	free(start_args);
+
+	if (kmain)
+		kmain(magic, multiboot);
+	
+	return nullptr;
+}
+
+pthread_t run_emulator(emulator_t* _emulator, void (*kmain)(uint32 magic, multiboot_info_t* multiboot)) {
+	if (!kmain) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot run the emulator because no kmain provided to run");
+
+		return 0;
 	}
 
-	emulator_log(false, LOG_SEVERITY_INFO, "Emulator running...\n");
+	emulator_log(false, LOG_SEVERITY_INFO, "Emulator running...");
 
 	emulator_t* emulator = _emulator;
 
 	if (!_emulator && cur) emulator = cur;
 
-	if (!emulator) return;
+	if (!emulator) return 0;
 
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Multiboot initialization...\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Multiboot initialization...");
 
-	multiboot_info_t multiboot_info = { 0 };
+	emulator->multiboot_info = malloc(sizeof(multiboot_info_t));
 
-	init_emulator_multiboot(emulator, &multiboot_info);
+	init_emulator_multiboot(emulator, emulator->multiboot_info);
 
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Multiboot initialized\n");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Multiboot initialized");
 
-	// multiboot_info.
+	if (emulator->cpu) emulator->cpu->tsc_start = emulator_read_tsc();
 
-	int code = sigsetjmp(emulator_before_kmain_jmp_buf, 1);
+	struct kmain_start_args_t* start_args = malloc(sizeof(struct kmain_start_args_t));
 
-	if (code == 0) {
-		if (emulator->cpu) emulator->cpu->tsc_start = emulator_read_tsc();
+	start_args->kmain = kmain;
+	start_args->magic = 0x2BADB002;
+	start_args->multiboot = emulator->multiboot_info;
 
-		kmain(0x2BADB002, &multiboot_info);
+	pthread_t kmain_thread;
+
+	int code = pthread_create(&kmain_thread, null, kmain_start, start_args);
+
+	if (code != 0) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Creating thread for kmain function (%x) error: %i", kmain, code);
+
+		return 0;
 	}
 
-	else {
-		emulator_log(true, LOG_SEVERITY_INFO, "Long jmp code: %i\n\r", code);
+	emulator->kmain_thread = kmain_thread;
 
-		emulator_forced_update_all_timers(emulator);
+	emulator->running = true;
 
-		emulator->is_hardware_reseting = true;
-
-		reset_kbdps2(emulator->kbdps2);
-		
-		// reset_cmos(emulator->cmos);
-		
-		reset_vga_text_screen(emulator->vga);
-		
-		reset_ram(emulator->ram);
-		
-		reset_cpu(emulator->cpu);
-
-		emulator->is_hardware_reseting = false;
-
-		if (emulator->cpu) emulator->cpu->tsc_start = emulator_read_tsc();
-
-		kmain(0x2BADB002, &multiboot_info);
-	}
-
-	emulator_log(false, LOG_SEVERITY_INFO, "Emulator exited\n");
+	return kmain_thread;
 }
 
 void free_emulator(emulator_t* _emulator) {
@@ -313,35 +397,81 @@ void free_emulator(emulator_t* _emulator) {
 
 	emulator_forced_update_all_timers(emulator);
 	
+	if (emulator->cpu) {
+		clear_halt(emulator->cpu);
+
+		release_cpu(emulator->cpu); emulator->cpu = nullptr;
+	}
+
 	if (emulator->kbdps2) {
-		free_kbdps2(emulator->kbdps2); emulator->kbdps2 = null;
+		free_kbdps2(emulator->kbdps2); emulator->kbdps2 = nullptr;
 
 		release_all_kbdps2();
 	}
 
 	if (emulator->cmos) {
-		free_cmos(emulator->cmos); emulator->cmos = null;
+		free_cmos(emulator->cmos); emulator->cmos = nullptr;
 
 		release_all_cmos();
 	}
 	
 	if (emulator->vga) {
-		release_all_vga_text_screen(emulator->vga); emulator->vga = null;
+		release_all_vga_text_screen(emulator->vga); emulator->vga = nullptr;
 	}
 	
 	if (emulator->ram) {
-		free_ram(emulator->ram); emulator->ram = null;
+		free_ram(emulator->ram); emulator->ram = nullptr;
 	}
 	
-	if (emulator->cpu) {
-		clear_halt(emulator->cpu);
-
-		release_cpu(emulator->cpu); emulator->cpu = null;
-	}
-
 	release_power_control();
 
-	free(emulator);
+	if (emulator->multiboot_info) {
+		free(emulator->multiboot_info); emulator->multiboot_info = nullptr;
+	}
 
-	// fflush(stdout);
+	#ifdef EMULATOR_SDL_USING
+	if (emulator->screen) {
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture framebuffer deinitialization...");
+
+		free(emulator->screen);
+		
+		emulator->screen = nullptr;
+		
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture framebuffer deinitialized!");
+	}
+
+	if (emulator->screen_texture) {
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture deinitialization...");
+
+		SDL_DestroyTexture(emulator->screen_texture);
+		
+		emulator->screen_texture = null;
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture deinitialized!");
+	}
+
+	if (emulator->renderer) {
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL renderer deinitialization...");
+
+		SDL_DestroyRenderer(emulator->renderer);
+		
+		emulator->renderer = null;
+		
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL renderer deinitialized!");
+	}
+
+	if (emulator->window) {
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL window deinitialization...");
+
+		SDL_DestroyWindow(emulator->window);
+		
+		emulator->window = null;
+
+		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL window deinitialized!");
+	}
+	#endif
+
+	if (emulator) free(emulator);
+
+	if (cur == emulator) cur = nullptr;
 }

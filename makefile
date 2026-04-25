@@ -1,8 +1,8 @@
-VIRTUAL_CFLAGS := 
+CFLAGS := -Wall
 
-BAREMETAL_CFLAGS := -m32 -ffreestanding
+VIRTUAL_CFLAGS := $(CFLAGS)
 
-CFLAGS := 
+BAREMETAL_CFLAGS := $(CFLAGS) -m32 -ffreestanding
 
 GASFLAGS := --32
 
@@ -23,7 +23,8 @@ EMULATOR_OBJFILES := \
 	$(addprefix obj/emulator/, $(BASE_OBJFILES))
 
 BAREMETAL_OBJFILES := \
-	$(addprefix obj/baremetal/, $(BASE_OBJFILES))
+	$(addprefix obj/baremetal/, $(BASE_OBJFILES)) \
+	obj/baremetal/loader.o
 
 all: emulator clean baremetal clean vmwareDisk
 
@@ -38,7 +39,7 @@ image:
 
 	@echo "Copy kernel and grub files on partition..."
 
-	@-rm hdd.img
+	@rm -f hdd.img
 
 	@cp kernel.bin img/boot/
 	
@@ -53,12 +54,12 @@ run_emulator:
 	@./emulator.out
 
 emulator: $(EMULATOR_OBJFILES)
-	@gcc $^ -o $@.out
+	@clang $^ -o $@.out -lSDL2 -lSDL2_image -pthread -lm
 
 obj/emulator/%.o: %.c
 	@mkdir -p $(dir $@)
 
-	@gcc -Iinclude -Iemulator/include -o $@ -c $^
+	@clang -Iinclude -Iemulator/include $(VIRTUAL_CFLAGS) -o $@ -c $^
 
 obj/emulator/%.o: %.s
 	@mkdir -p $(dir $@)
@@ -68,7 +69,7 @@ obj/emulator/%.o: %.s
 obj/baremetal/%.o: %.c
 	@mkdir -p $(dir $@)
 
-	@gcc -Iinclude $(BAREMETAL_CFLAGS) -o $@ -c $^
+	@clang -Iinclude $(BAREMETAL_CFLAGS) -o $@ -c $^
 
 obj/baremetal/%.o: %.s
 	@mkdir -p $(dir $@)
@@ -79,7 +80,7 @@ bare_metal_csources: $(BAREMETAL_OBJFILES)
 
 kernel.bin: CFLAGS := $(BAREMETAL_CFLAGS)
 kernel.bin: $(BAREMETAL_OBJFILES)
-	@ld -m elf_i386 -T linker.ld -o $@ $^
+	ld -m elf_i386 -T linker.ld -o $@ $^
 
 vmwareDisk:
 	@qemu-img convert -f raw hdd.img -O vmdk Emulator_OS.vmdk
@@ -89,3 +90,4 @@ clean:
 
 clean_all: clean
 	@rm -f hdd.img emulator.out Emulator_OS.vmdk
+

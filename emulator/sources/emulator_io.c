@@ -4,6 +4,8 @@
 
 #include "main.h"
 
+#include "emulator_logger.h"
+
 #include <string.h>
 
 static handler_port_in_t table_port_in[65536] = { 0 };
@@ -16,9 +18,9 @@ _size_t port_in(uint16 port) {
 	if (result)
 		return result();
 	else
-		emulator_log(false, LOG_SEVERITY_WARNING, "Tried read free port 0x%hx\n", port);
+		emulator_log(false, LOG_SEVERITY_WARNING, "Tried read free port 0x%hx", port);
 
-	return 0;
+	return 0xFF;
 }
 
 void port_out(uint16 port, _size_t value) {
@@ -27,7 +29,7 @@ void port_out(uint16 port, _size_t value) {
 	if (result)
 		result(value);
 	else
-		emulator_log(false, LOG_SEVERITY_WARNING, "Tried write 0x%llx to free port 0x%hx\n", value, port);
+		emulator_log(false, LOG_SEVERITY_WARNING, "Tried write 0x%llx to free port 0x%hx", value, port);
 }
 
 void emulator_setup_port_in(uint16 port, handler_port_in_t handler) {

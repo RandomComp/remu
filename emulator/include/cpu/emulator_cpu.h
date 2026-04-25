@@ -8,8 +8,6 @@
 typedef struct cpu_t {
 	bool halted;
 
-	timer_t hardware_timerid;
-
 	time_t frametime_ns;
 
 	time_t halted_frametime_ns;
@@ -17,7 +15,9 @@ typedef struct cpu_t {
 	time_t tsc_start;
 } cpu_t;
 
-cpu_t* init_cpu(time_t frametime_ns, time_t halted_frametime_ns, void (*tick)(int));
+typedef void (*signal_handler_t)(int);
+
+cpu_t* init_cpu(uint64 frametime_ns, uint64 halted_frametime_ns);
 
 void set_halt(cpu_t* cpu);
 

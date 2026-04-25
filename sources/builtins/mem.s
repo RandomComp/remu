@@ -435,3 +435,4 @@ sbb     %eax,%eax
 xor     $-2,%eax
 ret
 .endif
+.section .note.GNU-stack,"",@progbits
