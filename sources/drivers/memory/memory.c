@@ -3,24 +3,35 @@
 #include "types.h"
 
 #ifndef FREE_STANDING_MODE
-#include "emulator_io.h"
+void* (*__emulator_get_ram)(void);
 
-#include "emulator.h"
+size_t (*__emulator_port_in)(uint16 port);
 
-#include "main.h"
+void (*__emulator_port_out)(uint16 port, size_t value);
 
-extern emulator_t* emulator;
+void (*__emulator_wait_halt)(void);
+
+void __emulator_init_os_kernel(
+	void* (*__get_ram)(void), 
+	size_t (*__port_in)(uint16 port), 
+	void (*__port_out)(uint16 port, size_t value), 
+	void (*__wait_halt)(void)) {
+	__emulator_get_ram = __get_ram;
+
+	__emulator_port_in = __port_in;
+
+	__emulator_port_out = __port_out;
+
+	__emulator_wait_halt = __wait_halt;
+}
 #endif
 
 void* get_ram() {
 	#ifdef FREE_STANDING_MODE
 	return (void*)0;
-
 	#else
-	if (!emulator) return nullptr;
-	
-	if (emulator->ram)
-		return emulator->ram->mem_ptr;
+	if (__emulator_get_ram)
+		return __emulator_get_ram();
 	#endif
 
 	return nullptr;
@@ -34,7 +45,8 @@ uint8 in8(uint16 port) {
 
 	return data;
 	#else
-	return (uint8)port_in(port);
+	if (__emulator_port_in)
+		return (uint8)__emulator_port_in(port);
 	#endif
 
 	return 0;
@@ -48,7 +60,8 @@ uint16 in16(uint16 port) {
 
 	return data;
 	#else
-	return (uint16)port_in(port);
+	if (__emulator_port_in)
+		return (uint16)__emulator_port_in(port);
 	#endif
 
 	return 0;
@@ -62,7 +75,8 @@ uint32 in32(uint16 port) {
 
 	return data;
 	#else
-	return (uint32)port_in(port);
+	if (__emulator_port_in)
+		return (uint32)__emulator_port_in(port);
 	#endif
 
 	return 0;
@@ -72,7 +86,8 @@ void out8(uint16 port, uint8 data) {
 	#ifdef FREE_STANDING_MODE
 	asm volatile ("outb %%al, %%dx" : : "a" (data), "d" (port));
 	#else
-	port_out(port, (_size_t)data);
+	if (__emulator_port_out)
+		__emulator_port_out(port, (size_t)data);
 	#endif
 }
 
@@ -80,7 +95,8 @@ void out16(uint16 port, uint16 data) {
 	#ifdef FREE_STANDING_MODE
 	asm volatile ("outw %%ax, %%dx" : : "a" (data), "d" (port));
 	#else
-	port_out(port, (_size_t)data);
+	if (__emulator_port_out)
+		__emulator_port_out(port, (size_t)data);
 	#endif
 }
 
@@ -88,6 +104,7 @@ void out32(uint16 port, uint32 data) {
 	#ifdef FREE_STANDING_MODE
 	asm volatile ("outl %%eax, %%dx" : : "a" (data), "d" (port));
 	#else
-	port_out(port, (_size_t)data);
+	if (__emulator_port_out)
+		__emulator_port_out(port, (size_t)data);
 	#endif
 }

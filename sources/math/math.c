@@ -66,7 +66,7 @@ float _fmod(float a, float b) {
 	return FMOD(a, b);
 }
 
-_size_t align_down(_size_t x, _size_t align) {
+size_t align_down(size_t x, size_t align) {
 	if (align == 0) {
 		// throw(ERROR_DIVISION_BY_ZERO);
 
@@ -78,7 +78,7 @@ _size_t align_down(_size_t x, _size_t align) {
 	return (x / align) * align;
 }
 
-_size_t align_up(_size_t x, _size_t align) {
+size_t align_up(size_t x, size_t align) {
 	if (align == 0) {
 		// throw(ERROR_DIVISION_BY_ZERO);
 
@@ -110,15 +110,15 @@ int32 pow32(int32 a, int32 b) {
 	return result;
 }
 
-_size_t powU32(_size_t a, _size_t b) {
+size_t powU32(size_t a, size_t b) {
 	if (b == 0) return 1;
 
 	if (b == 1) return a;
 
-	_size_t result = 1;
+	size_t result = 1;
 
 	while (b--) {
-		_size_t oldResult = result;
+		size_t oldResult = result;
 
 		result *= a;
 

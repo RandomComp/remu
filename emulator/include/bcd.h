@@ -3,10 +3,10 @@
 
 #include "types.h"
 
-static size_t to_bcd(size_t num) {
-	size_t result = 0;
+static _size_t to_bcd(_size_t num) {
+	_size_t result = 0;
 
-	size_t index = 0;
+	_size_t index = 0;
 
 	while (num >= 1) {
 		result += (num % 10) * (1 << index);
@@ -19,15 +19,15 @@ static size_t to_bcd(size_t num) {
 	return result;
 }
 
-static size_t from_bcd(size_t num) {
-	size_t result = 0;
+static _size_t from_bcd(_size_t num) {
+	_size_t result = 0;
 
-	size_t index = 0;
+	_size_t index = 0;
 
 	while (num >= 1) {
-		size_t temp_result = num % 16;
+		_size_t temp_result = num % 16;
 
-		for (size_t i = 0; i < index; i++) {
+		for (_size_t i = 0; i < index; i++) {
 			temp_result *= 10;
 		}
 

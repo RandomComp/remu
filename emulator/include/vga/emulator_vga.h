@@ -22,9 +22,9 @@ typedef struct vga_text_screen_t {
 
 	byte mode_reg;
 
+	#ifdef EMULATOR_SDL_USING
 	bool gui;
 
-	#ifdef EMULATOR_SDL_USING
 	byte* font;
 	_size_t font_width;
 	_size_t font_height;
@@ -35,9 +35,15 @@ typedef struct vga_text_screen_t {
 	#endif
 } vga_text_screen_t;
 
+#ifdef EMULATOR_SDL_USING
 vga_text_screen_t* init_vga_text_screen(uint32* screen, _size_t screen_width, _size_t screen_height, bool gui, ram_t* ram, _ssize_t columns, _ssize_t rows);
+#else
+vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t rows);
+#endif
 
 void clear_vga_text_screen(vga_text_screen_t* screen);
+
+int draw_vga_text(vga_text_screen_t* vga, const c_str text, byte style, _size_t column, _size_t row);
 
 void draw_vga_text_screen(vga_text_screen_t* screen);
 

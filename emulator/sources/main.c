@@ -22,9 +22,7 @@
 
 #include "ansi.h"
 
-#include "math/math.h"
-
-#include "kernel.h"
+#include "math.h"
 
 #include "utils.h"
 
@@ -35,6 +33,8 @@
 #include <pthread.h>
 
 #include <signal.h>
+
+#include <dlfcn.h>
 
 #ifdef EMULATOR_SDL_USING
 #include <SDL2/SDL.h>
@@ -56,7 +56,11 @@ static void on_emulator_exit() {
 		switch_to_default(orig_termios);
 
 		free(orig_termios);
+
+		printf(visible_cursor);
 	}
+
+	printf("\n\r");
 
 	imd_exit_emulator(0);
 }
@@ -104,17 +108,28 @@ void imd_exit_emulator(int code) {
 	if (emulator) {
 		emulator->running = false;
 
-		pthread_cancel(emulator->kmain_thread);
+		if (emulator->kmain_thread > 0)
+			pthread_cancel(emulator->kmain_thread);
+		
+		emulator->kmain_thread = 0;
+
+		// TODO: Починить баг с освобождением handle_keys_cli
+
+		// #ifndef EMULATOR_SDL_USING
+		// emulator_release_tick_timer(emulator, handle_keys_cli);
+		// #endif
 
 		free_emulator(emulator);
 
-		free_emulator_logger();
-
+		#ifdef EMULATOR_SDL_USING
 		IMG_Quit();
 		SDL_Quit();
+		#endif
 
 		emulator = nullptr;
 	}
+
+	free_emulator_logger();
 }
 
 static void timer_handler(int sig) {
@@ -132,6 +147,24 @@ static void timer_handler(int sig) {
 // extern void printf(const char* format, int len);
 
 // extern void exit123(int);
+
+static void* emulator_get_ram() {
+	if (!emulator) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "[CALLING FROM KERNEL] Cannot get the emulator ram: emulator not initialized");
+
+		return nullptr;
+	}
+
+	return emulator->ram->mem_ptr;
+}
+
+void wait_halt() {
+	if (emulator) {
+		set_halt(emulator->cpu);
+		
+		usleep(cpu_get_itval_ns(emulator->cpu) / 1000);
+	}
+}
 
 int main() {
 	#ifdef IS_WIN
@@ -156,6 +189,7 @@ int main() {
 
 		return 1;
 	}
+
 	#endif
 
 	time_t cur_time = time(0);
@@ -191,6 +225,48 @@ int main() {
 	#endif
 
 	// get_terminal_size(&columns, &rows);
+
+	emulator_log(true, LOG_SEVERITY_INFO, "OS \"emulator_os.so\" loading...");
+
+	const c_str so_name = "./emulator_os.so";
+
+	void* os_handle = dlopen(so_name, RTLD_LAZY);
+
+	if (!os_handle) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "dlopen error. Did you forgot to compile OS?");
+
+		return 1;
+	}
+
+	void (*__emulator_init_os_kernel)(
+	void* (*__get_ram)(void), 
+	_size_t (*__port_in)(uint16 port), 
+	void (*__port_out)(uint16 port, _size_t value),
+	void (*wait_halt)(void));
+
+	void (*kmain)(uint32 magic, multiboot_info_t* multiboot);
+
+	__emulator_init_os_kernel = dlsym(os_handle, "__emulator_init_os_kernel");
+	
+	if (!__emulator_init_os_kernel) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"__emulator_init_os_kernel\" in provided \"%s\". Check out the function name.", so_name);
+
+		dlclose(os_handle);
+
+		return 1;
+	}
+
+	kmain = dlsym(os_handle, "kmain");
+
+	if (!kmain) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"kmain\" in provided \"%s\". Check out the function name.", so_name);
+
+		dlclose(os_handle);
+
+		return 1;
+	}
+
+	emulator_log(true, LOG_SEVERITY_INFO, "OS \"%s\" loaded!", so_name);
 	
 	struct timespec ts;
 
@@ -200,8 +276,16 @@ int main() {
 
 	emulator = init_emulator(true, 640, 400, FRAMETIME_NS, FRAMETIME_NS);
 
+	emulator_log(true, LOG_SEVERITY_INFO, "Kernel initializing...");
+
+	__emulator_init_os_kernel(emulator_get_ram, port_in, port_out, wait_halt);
+
+	emulator_log(true, LOG_SEVERITY_INFO, "Kernel initialized!");
+
 	if (!emulator) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Emulator initializing error");
+
+		dlclose(os_handle);
 
 		imd_exit_emulator(1);
 
@@ -216,7 +300,11 @@ int main() {
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Initialization duration: %llu us", emulator_init_dur);
 
+	draw_vga_text(emulator->vga, "OS Booting...", 0x1F, 32, 11);
+
 	pthread_t kmain_thread = run_emulator(emulator, kmain);
+
+	// emulator->running = true;
 
 	#ifdef EMULATOR_SDL_USING
 	
@@ -228,6 +316,14 @@ int main() {
 				emulator_log(true, LOG_SEVERITY_INFO, "Exiting emulator because pressed quit button...");
 
 				emulator->running = false; break;
+			}
+
+			if (event.type == SDL_KEYDOWN) {
+				handle_key_gui(event.key.keysym.scancode, false);
+			}
+
+			else if (event.type == SDL_KEYUP) {
+				handle_key_gui(event.key.keysym.scancode, true);
 			}
 		}
 
@@ -244,7 +340,9 @@ int main() {
 		usleep(cpu_get_itval_ns(emulator->cpu) / 1000);
 	}
 	#else
-	while (emulator->running) {
+	emulator_setup_tick_timer(emulator, handle_keys_cli, 10);
+
+	while (emulator && emulator->running) {
 		if (!emulator->is_hardware_reseting)
 			emulator_update_all(emulator);
 
@@ -252,7 +350,11 @@ int main() {
 	}
 	#endif
 	
+	emulator_release_tick_timer(emulator, handle_keys_cli);
+	
 	imd_exit_emulator(0);
+
+	if (os_handle) dlclose(os_handle); os_handle = nullptr;
 
 	#ifndef EMULATOR_SDL_USING
 	printf(visible_cursor);

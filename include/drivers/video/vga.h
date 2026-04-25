@@ -9,7 +9,7 @@
 
 #define vidmem_size (columns * rows)
 
-void crt_set_cursor_pos(_size_t x, _size_t y);
+void crt_set_cursor_pos(size_t x, size_t y);
 
 void crt_enable_cursor();
 

@@ -3,29 +3,13 @@
 #include "types.h"
 
 #ifndef FREE_STANDING_MODE
-#ifdef IS_UNIX
-#include <unistd.h>
-#elif IS_WIN
-#include <windows.h>
-#endif
-
-#include <time.h>
-
-#include "emulator.h"
-
-extern emulator_t* emulator;
-
-#include "main.h"
+extern void (*__emulator_wait_halt)(void);
 #endif
 
 void halt() {
 	#ifdef FREE_STANDING_MODE
 	asm volatile("hlt");
-	#elif defined(IS_UNIX)
-	set_halt(emulator->cpu);
-	usleep(emulator->cpu->halted_frametime_ns / (time_t)1000);
-	#elif defined(IS_WIN)
-	set_halt(emulator->cpu);
-	Sleep(emulator->cpu->halted_frametime_ns / (time_t)1000000);
+	#else
+	__emulator_wait_halt();
 	#endif
 }

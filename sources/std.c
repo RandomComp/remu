@@ -1,5 +1,3 @@
-#include "blockstd.h"
-
 #include "std.h"
 
 #include "types.h"
@@ -20,7 +18,7 @@ static uint16* vidmem = nullptr;
 
 static byte cur_style = 0x0F;
 
-static _ssize_t cur_x = 0, cur_y = 0;
+static ssize_t cur_x = 0, cur_y = 0;
 
 void init_std(uint16* _vidmem) {
 	cur_style = 0x0F;
@@ -33,7 +31,7 @@ void init_std(uint16* _vidmem) {
 void clear_screen(byte style) {
 	if (!vidmem) return;
 
-	for (_size_t i = 0; i < vidmem_size; i++) {
+	for (size_t i = 0; i < vidmem_size; i++) {
 		vidmem[i] = (uint16)style << 8;
 	}
 }
@@ -41,7 +39,7 @@ void clear_screen(byte style) {
 void putch(byte c) {
 	if (!vidmem) return;
 
-	_ssize_t cur_pos = (cur_y * columns) + cur_x;
+	ssize_t cur_pos = (cur_y * columns) + cur_x;
 	
 	switch (c) {
 		case '\b':
@@ -65,8 +63,8 @@ void putch(byte c) {
 	set_cursor_pos(cur_pos % columns, cur_pos / columns);
 
 	while (cur_y >= rows) {
-		for (_size_t i = 0; i < rows - 1; i++) {
-			_size_t next_i = i + 1;
+		for (size_t i = 0; i < rows - 1; i++) {
+			size_t next_i = i + 1;
 
 			memcpy(vidmem + (i * columns), vidmem + (next_i * columns), columns * 2);
 		}
@@ -80,7 +78,7 @@ void putch(byte c) {
 void kprint(const c_str str) {
 	if (!vidmem) return;
 
-	for (_size_t i = 0; str[i]; i++) {
+	for (size_t i = 0; str[i]; i++) {
 		putch(str[i]);
 	}
 }
@@ -92,11 +90,11 @@ void kprintf(const c_str format, ...) {
 
 	va_start(list, format);
 
-	for (_size_t i = 0; format[i]; i++) {
+	for (size_t i = 0; format[i]; i++) {
 		char* c = format + i;
 
 		if (*c == '%') {
-			_size_t temp_i = i + 1;
+			size_t temp_i = i + 1;
 			
 			bool padding = false; // false -- right padding, true -- left padding
 
@@ -175,8 +173,8 @@ void kprintf(const c_str format, ...) {
 	va_end(list);
 }
 
-_size_t get_num_digits(_ssize_t num, _size_t base) {
-	_size_t result = 0;
+size_t get_num_digits(ssize_t num, size_t base) {
+	size_t result = 0;
 
 	while (num >= base) {
 		result += 1;
@@ -213,7 +211,7 @@ const char num_alphabet[] =
 	"KLMNOPQRST"
 	"UVWXYZ";
 
-static _ssize_t ch_index_in_alphabet(char c, const c_str alphabet, _size_t alphabet_size) {
+static ssize_t ch_index_in_alphabet(char c, const c_str alphabet, size_t alphabet_size) {
 	if (alphabet == nullptr || alphabet_size == 0) {
 		kprint("Check char in alphabet failure: "
 				"alphabet is nullptr or alphabet_size = 0\n\r");
@@ -221,14 +219,14 @@ static _ssize_t ch_index_in_alphabet(char c, const c_str alphabet, _size_t alpha
 		return -1;
 	}
 
-	for (_size_t i = 0; i < alphabet_size; i++) {
+	for (size_t i = 0; i < alphabet_size; i++) {
 		if (c == alphabet[i]) return i;
 	}
 
 	return -1;
 }
 
-ErrorCode parse_hex(byte* result, _size_t res_size, const c_str str) {
+ErrorCode parse_hex(byte* result, size_t res_size, const c_str str) {
 	if (str == nullptr) {
 		kprint("Hex parse failure: str is nullptr\n"); return CODE_FAIL;
 	}
@@ -237,7 +235,7 @@ ErrorCode parse_hex(byte* result, _size_t res_size, const c_str str) {
 		kprint("Hex parse failure: result is nullptr\n"); return CODE_FAIL;
 	}
 
-	_size_t digit_cnt = 0;
+	size_t digit_cnt = 0;
 
 	while (ch_index_in_alphabet(upper(str[digit_cnt]), num_alphabet, 16) != -1) {
 		result[digit_cnt / 2] = 0;
@@ -247,18 +245,18 @@ ErrorCode parse_hex(byte* result, _size_t res_size, const c_str str) {
 
 	res_size *= 2;
 
-	_size_t bit_index = digit_cnt * 4;
+	size_t bit_index = digit_cnt * 4;
 
-	for (_size_t i = 0; i < digit_cnt; i++) {
+	for (size_t i = 0; i < digit_cnt; i++) {
 		bit_index -= 4;
 
-		_size_t byte_index = bit_index / 8;
+		size_t byte_index = bit_index / 8;
 
 		if (byte_index >= res_size) continue;
 
 		char c = str[i];
 
-		_ssize_t index = ch_index_in_alphabet(upper(str[i]), num_alphabet, 16);
+		ssize_t index = ch_index_in_alphabet(upper(str[i]), num_alphabet, 16);
 
 		if (index == -1) break;
 
@@ -268,7 +266,7 @@ ErrorCode parse_hex(byte* result, _size_t res_size, const c_str str) {
 	return CODE_OK;
 }
 
-_uintmax_t parse_num(const c_str str, _uintmax_t radix) {
+uintmax_t parse_num(const c_str str, uintmax_t radix) {
 	if (str == nullptr) {
 		kprint("Number parse failure: str is nullptr\n"); return CODE_FAIL;
 	}
@@ -279,17 +277,17 @@ _uintmax_t parse_num(const c_str str, _uintmax_t radix) {
 		return CODE_FAIL;
 	}
 
-	_uintmax_t result = 0;
+	uintmax_t result = 0;
 
-	_size_t digit_cnt = 0;
+	size_t digit_cnt = 0;
 
 	while (ch_index_in_alphabet(upper(str[digit_cnt]), num_alphabet, radix) != -1)
 		digit_cnt++;
 
-	for (_size_t i = 0; i < digit_cnt; i++) {
+	for (size_t i = 0; i < digit_cnt; i++) {
 		char c = upper(str[i]);
 
-		_size_t index = ch_index_in_alphabet(c, num_alphabet, radix);
+		size_t index = ch_index_in_alphabet(c, num_alphabet, radix);
 
 		if (index == -1) break;
 
@@ -301,12 +299,12 @@ _uintmax_t parse_num(const c_str str, _uintmax_t radix) {
 	return result;
 }
 
-void print_hex(byte* num, _size_t size) {
+void print_hex(byte* num, size_t size) {
 	if (!vidmem) return;
 
 	if (num == nullptr) return;
 
-	for (_size_t i = 0; i < size; i++) {
+	for (size_t i = 0; i < size; i++) {
 		byte hi = (num[i] >> 4) & 0xF,
 			 lo = num[i] & 0xF;
 
@@ -317,7 +315,7 @@ void print_hex(byte* num, _size_t size) {
 	}
 }
 
-void print_num(_size_t num, _size_t base) {
+void print_num(size_t num, size_t base) {
 	if (!vidmem) return;
 
 	if (base <= 0 || base >= strlen(num_alphabet)) {
@@ -346,9 +344,9 @@ void print_num(_size_t num, _size_t base) {
 
 	char buf[32] = { 0 };
 
-	_size_t buf_size = sizeof(buf) / sizeof(buf[0]);
+	size_t buf_size = sizeof(buf) / sizeof(buf[0]);
 
-	_size_t index = MIN(buf_size - 1, get_num_digits(num, base));
+	size_t index = MIN(buf_size - 1, get_num_digits(num, base));
 
 	while (num >= base && index > 0) {
 		buf[index] = num_alphabet[num % base];
@@ -363,13 +361,13 @@ void print_num(_size_t num, _size_t base) {
 	kprint(buf);
 }
 
-void nblk__set_cursor_pos(_ssize_t x, _ssize_t y) {
+void nblk__set_cursor_pos(ssize_t x, ssize_t y) {
 	cur_x = x; cur_y = y;
 
 	crt_set_cursor_pos(cur_x, cur_y);
 }
 
-void get_cursor_pos(_ssize_t* x, _ssize_t* y) {
+void get_cursor_pos(ssize_t* x, ssize_t* y) {
 	if (x) *x = cur_x;
 
 	if (y) *y = cur_y;

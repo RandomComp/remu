@@ -148,6 +148,10 @@ typedef enum scancode_e {
 	SCANCODE_CONTROL_SEQUENCE = 0xE0
 } scancode_e;
 
+void handle_key_gui(byte sdl_scancode, bool is_key_released);
+
+void handle_keys_cli();
+
 kbdps2_t* init_kbdps2(bool gui);
 
 void free_kbdps2(kbdps2_t* kbdps2);

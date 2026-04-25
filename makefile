@@ -2,6 +2,8 @@ CFLAGS := -Wall
 
 VIRTUAL_CFLAGS := $(CFLAGS)
 
+OS_CFLAGS := $(CFLAGS) -nostdlib -nostdinc -fno-asynchronous-unwind-tables -fno-stack-protector
+
 BAREMETAL_CFLAGS := $(CFLAGS) -m32 -ffreestanding
 
 GASFLAGS := --32
@@ -19,8 +21,10 @@ EMULATOR_SRCFILES := $(shell find emulator/sources -name "*.c")
 EMULATOR_OBJFILES := $(EMULATOR_SRCFILES:.c=.o)
 
 EMULATOR_OBJFILES := \
-	$(addprefix obj/emulator/, $(EMULATOR_OBJFILES)) \
-	$(addprefix obj/emulator/, $(BASE_OBJFILES))
+	$(addprefix obj/emulator/, $(EMULATOR_OBJFILES))
+
+OS_OBJFILES := \
+	$(addprefix obj/os/, $(BASE_OBJFILES))
 
 BAREMETAL_OBJFILES := \
 	$(addprefix obj/baremetal/, $(BASE_OBJFILES)) \
@@ -28,7 +32,7 @@ BAREMETAL_OBJFILES := \
 
 all: emulator clean baremetal clean vmwareDisk
 
-emulator_all: emulator clean run_emulator
+emulator_all: emulator clean emulator_os clean run_emulator
 
 baremetal_all: baremetal vmwareDisk clean run_baremetal
 
@@ -54,17 +58,25 @@ run_emulator:
 	@./emulator.out
 
 emulator: $(EMULATOR_OBJFILES)
-	@clang $^ -o $@.out -lSDL2 -lSDL2_image -pthread -lm
+	@clang -g $^ -o $@.out -lSDL2 -lSDL2_image -pthread -lm
+
+emulator_os: $(OS_OBJFILES)
+	@clang -shared -Wl,--gc-sections -Wl,-z,norelro -g $^ -o $@.so
+
+obj/os/%.o: %.c
+	@mkdir -p $(dir $@)
+
+	@clang -g -Iinclude -fPIC $(OS_CFLAGS) -o $@ -c $^
+
+obj/os/%.o: %.s
+	@mkdir -p $(dir $@)
+
+	@as --defsym LONG_MODE_MACRO=1 $^ -o $@
 
 obj/emulator/%.o: %.c
 	@mkdir -p $(dir $@)
 
-	@clang -Iinclude -Iemulator/include $(VIRTUAL_CFLAGS) -o $@ -c $^
-
-obj/emulator/%.o: %.s
-	@mkdir -p $(dir $@)
-
-	@as --defsym LONG_MODE_MACRO=1 $^ -o $@
+	@clang -g -Iemulator/include $(VIRTUAL_CFLAGS) -o $@ -c $^
 
 obj/baremetal/%.o: %.c
 	@mkdir -p $(dir $@)
@@ -86,8 +98,8 @@ vmwareDisk:
 	@qemu-img convert -f raw hdd.img -O vmdk Emulator_OS.vmdk
 
 clean:
-	@rm -f $(BAREMETAL_OBJFILES) $(EMULATOR_OBJFILES) kernel.bin
+	@rm -f $(BAREMETAL_OBJFILES) $(EMULATOR_OBJFILES) $(OS_OBJFILES) kernel.bin
 
 clean_all: clean
-	@rm -f hdd.img emulator.out Emulator_OS.vmdk
+	@rm -f hdd.img emulator.out emulator_os.so Emulator_OS.vmdk
 

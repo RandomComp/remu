@@ -13,7 +13,7 @@ void kprint(const c_str str);
 
 void kprintf(const c_str format, ...);
 
-_size_t get_num_digits(_ssize_t num, _size_t base);
+size_t get_num_digits(ssize_t num, size_t base);
 
 bool _isalpha(char c);
 
@@ -25,17 +25,17 @@ char upper(char c);
 
 char lower(char c);
 
-ErrorCode parse_hex(byte* result, _size_t res_size, const c_str str);
+ErrorCode parse_hex(byte* result, size_t res_size, const c_str str);
 
-_uintmax_t parse_num(const c_str str, _uintmax_t radix);
+uintmax_t parse_num(const c_str str, uintmax_t radix);
 
-void print_hex(byte* num, _size_t size);
+void print_hex(byte* num, size_t size);
 
-void print_num(_size_t num, _size_t base);
+void print_num(size_t num, size_t base);
 
-void nblk__set_cursor_pos(_ssize_t x, _ssize_t y);
+void nblk__set_cursor_pos(ssize_t x, ssize_t y);
 
-void get_cursor_pos(_ssize_t* x, _ssize_t* y);
+void get_cursor_pos(ssize_t* x, ssize_t* y);
 
 void set_style(byte style);
 

@@ -13,7 +13,7 @@
 
 #include "power/emulator_power_control.h"
 
-#include "multiboot.h"
+#include "emulator_multiboot.h"
 
 #include "emulator_io.h"
 
@@ -26,9 +26,9 @@
 typedef void (*tick_timer_handler_t)();
 
 typedef struct tick_timer_t {
-	_time_t last_time;
+	time_t last_time;
 
-	_time_t ms;
+	time_t ms;
 
 	tick_timer_handler_t handler;
 } tick_timer_t;
@@ -39,7 +39,7 @@ typedef struct tick_timer_t {
 
 #define TICK_TIMERS_SIZE_STEP (4)
 
-#define EMULATOR_VERSION_STR "beta 0.0.6"
+#define EMULATOR_VERSION_STR "beta 0.3.0"
 
 #define EMULATOR_VERSION_FULL_STR EMULATOR_VERSION_STR " (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " %i.%i " PLATFORM_ARCH
 
@@ -80,7 +80,9 @@ struct emulator_t {
 
 	multiboot_info_t* multiboot_info;
 
-	pthread_t kmain_thread;
+	pthread_t kmain_thread; bool kmain_started;
+
+	bool cleaned;
 
 	#ifdef EMULATOR_SDL_USING
 	SDL_Window* window;
@@ -95,7 +97,7 @@ struct emulator_t {
 	#endif
 };
 
-void emulator_setup_tick_timer(emulator_t* emulator, tick_timer_handler_t handler, _time_t ms);
+void emulator_setup_tick_timer(emulator_t* emulator, tick_timer_handler_t handler, time_t ms);
 
 void emulator_release_tick_timer(emulator_t* emulator, tick_timer_handler_t handler);
 

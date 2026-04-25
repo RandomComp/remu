@@ -4,9 +4,15 @@
 
 #include "emulator.h"
 
-#include "math/math.h"
+#include "math.h"
 
 #include <stdio.h>
+
+#include <stdlib.h>
+
+#include <string.h>
+
+#include <stdarg.h>
 
 static log_severity_e min_log_severity = LOG_SEVERITY_VERBOSE; // 0 для отключения логов
 

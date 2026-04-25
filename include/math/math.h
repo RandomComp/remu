@@ -27,7 +27,7 @@
 
 typedef struct ProcessorMathState {
 	bool bOverflow; // Флаг переполнения типа
-	_size_t divRem; // Остаток от деления, вычисленный при вычислении деления
+	size_t divRem; // Остаток от деления, вычисленный при вычислении деления
 } ProcessorMathState;
 
 bool getOverflowFlag();
@@ -35,10 +35,10 @@ bool getOverflowFlag();
 int32 pow32(int32 a, int32 b);
 int64 pow64(int64 a, int64 b);
 
-_size_t powU32(_size_t a, _size_t b);
+size_t powU32(size_t a, size_t b);
 uint64 powU64(uint64 a, uint64 b);
 
-static inline double _trunc(double x) {
+static inline double trunc(double x) {
 	if (x != x || x == 0.0 || x == 1.0/0.0 || x == -1.0/0.0)
 		return x;
 
@@ -115,18 +115,18 @@ static inline float ftrunc(float x) {
 	return converter.f;
 }
 
-#define MOD(a, b) ((a) - (_trunc((a) / (b)) * (b)))
+#define MOD(a, b) ((a) - (trunc((a) / (b)) * (b)))
 
 #define FMOD(a, b) ((a) - (ftrunc((a) / (b)) * (b)))
 
 #define GET_FIRST_DIGIT(x) (uint8)(MOD(ABS(x), 10))
 
 static inline double frac(double x) {
-	return x - _trunc(x);
+	return x - trunc(x);
 }
 
 static inline float ffrac(float x) {
-	return x - _trunc(x);
+	return x - trunc(x);
 }
 
 static inline uint8 fgetFirstNumberAfterDecimalPoint(float x) {
@@ -157,16 +157,16 @@ static inline int64 scaleToInteger(double x) {
 	return x * pow64(10, getCountDecimalPlaces(x));
 }
 
-static inline bool isPowerOfTwoU32(_size_t x) {
+static inline bool isPowerOfTwoU32(size_t x) {
 	return x > 0 && ((x & (x - 1)) == 0);
 }
 
-_size_t align_down(_size_t x, _size_t align);
+size_t align_down(size_t x, size_t align);
 
-_size_t align_up(_size_t x, _size_t align);
+size_t align_up(size_t x, size_t align);
 
-static inline double _floor(double x) {
-	double result = _trunc(x);
+static inline double floor(double x) {
+	double result = trunc(x);
 
 	if (x < 0 && (frac(x) != 0))
 		result -= 1;
@@ -174,8 +174,8 @@ static inline double _floor(double x) {
 	return result;
 }
 
-static inline double _ceil(double x) {
-	double result = _trunc(x);
+static inline double ceil(double x) {
+	double result = trunc(x);
 
 	if (x > 0 && (frac(x) != 0))
 		result += 1;
@@ -183,11 +183,11 @@ static inline double _ceil(double x) {
 	return result;
 }
 
-static inline double _round(double x) {
+static inline double round(double x) {
 	if (x < 0)
-		return  frac(x) >= 0.5 ? _floor(x) : _ceil(x);
+		return  frac(x) >= 0.5 ? floor(x) : ceil(x);
 
-	return      frac(x) >= 0.5 ? _ceil(x) : _floor(x);
+	return      frac(x) >= 0.5 ? ceil(x) : floor(x);
 }
 
 static inline float ffloor(float x) {

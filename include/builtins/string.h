@@ -1,14 +1,12 @@
 #ifndef _EMULATOR_OS_BUILTINS_STRING_H
 #define _EMULATOR_OS_BUILTINS_STRING_H
 
-#include "blockstd.h"
-
 #include "types.h"
 
-static _ssize_t nblk__strlen(const c_str text) {
+static ssize_t nblk__strlen(const c_str text) {
 	if (!text) return -1;
 
-	_ssize_t result = 0;
+	ssize_t result = 0;
 
 	while (text[result]) {
 		result++;

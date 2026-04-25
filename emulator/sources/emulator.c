@@ -24,7 +24,7 @@
 
 #include "types.h"
 
-#include "math/math.h"
+#include "math.h"
 
 #include <stdlib.h>
 
@@ -49,7 +49,7 @@ static emulator_t* cur = nullptr;
 #define siglongjmp(__env, __val) longjmp(__env, __val)
 #endif
 
-void emulator_setup_tick_timer(emulator_t* _emulator, tick_timer_handler_t handler, _time_t ms) {
+void emulator_setup_tick_timer(emulator_t* _emulator, tick_timer_handler_t handler, time_t ms) {
 	emulator_t* emulator = _emulator;
 
 	if (!_emulator && cur) emulator = cur;
@@ -76,7 +76,7 @@ void emulator_release_tick_timer(emulator_t* _emulator, tick_timer_handler_t han
 
 	if (!_emulator && cur) emulator = cur;
 
-	if (!emulator || !emulator->tick_timers || !handler) return;
+	if (!emulator || !emulator->tick_timers || emulator->cleaned || !handler) return;
 
 	_ssize_t index = -1;
 
@@ -102,11 +102,9 @@ void emulator_forced_update_all_timers(emulator_t* _emulator) {
 
 	if (emulator->tick_timers) {
 		for (size_t i = 0; i < emulator->tick_timers_cnt; i++) {
-			tick_timer_t* tick_timer = &emulator->tick_timers[i];
+			tick_timer_t tick_timer = emulator->tick_timers[i];
 
-			if (!tick_timer) continue;
-
-			tick_timer->handler();
+			if (tick_timer.handler) tick_timer.handler();
 		}
 	}
 }
@@ -122,9 +120,9 @@ void emulator_update_all(emulator_t* _emulator) {
 		for (size_t i = 0; i < emulator->tick_timers_cnt; i++) {
 			tick_timer_t* tick_timer = &emulator->tick_timers[i];
 
-			if (!tick_timer) continue;
+			if (!tick_timer->handler) continue;
 
-			_time_t dur = emulator->ticks - tick_timer->last_time;
+			time_t dur = emulator->ticks - tick_timer->last_time;
 
 			if (dur >= tick_timer->ms) {
 				tick_timer->handler();
@@ -146,17 +144,19 @@ static void debug_write(_size_t data) {
 }
 
 emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 frametime_ns, uint64 halted_frametime_ns) {
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "Emulator initialization...");
+	emulator_log(true, LOG_SEVERITY_INFO, "Emulator initialization...");
 
 	emulator_t* emulator = malloc(sizeof(emulator_t));
 
 	memset(emulator, 0, sizeof(emulator_t));
 
 	if (gui) {
+		// TODO: Исправить холостое открытие при SDL_CreateWindow
+
 		#ifdef EMULATOR_SDL_USING
 		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL window and renderer initialization...");
 
-		emulator->window = SDL_CreateWindow("OS Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, 0);
+		emulator->window = SDL_CreateWindow("OS Emulator", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_RESIZABLE);
 
 		if (!emulator->window) {
 			emulator_log(true, LOG_SEVERITY_ERROR, "SDL window initialization error: %s", SDL_GetError());
@@ -180,9 +180,9 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 		
 		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture initialization (for drawing)...");
 
-		emulator->screen_width = 80 * 8;
+		emulator->screen_width = 80 * VGA_CHAR_WIDTH;
 
-		emulator->screen_height = 25 * 16;
+		emulator->screen_height = 25 * VGA_CHAR_HEIGHT;
 
 		emulator->screen_texture = SDL_CreateTexture(emulator->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, emulator->screen_width, emulator->screen_height);
 
@@ -238,10 +238,16 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 
 	emulator->ram = init_ram(8 * 1024 * 1024);
 
+	#ifdef EMULATOR_SDL_USING
 	emulator->vga = init_vga_text_screen(
 		emulator->screen, emulator->screen_width, emulator->screen_height, 
 		emulator->gui, emulator->ram, 80, 25
 	);
+	#else
+	emulator->vga = init_vga_text_screen(
+		emulator->ram, 80, 25
+	);
+	#endif
 
 	emulator->cmos = init_cmos();
 
@@ -383,6 +389,8 @@ pthread_t run_emulator(emulator_t* _emulator, void (*kmain)(uint32 magic, multib
 
 	emulator->running = true;
 
+	emulator->kmain_started = true;
+
 	return kmain_thread;
 }
 
@@ -471,7 +479,9 @@ void free_emulator(emulator_t* _emulator) {
 	}
 	#endif
 
-	if (emulator) free(emulator);
+	emulator->cleaned = true;
+		
+	free(emulator);
 
 	if (cur == emulator) cur = nullptr;
 }

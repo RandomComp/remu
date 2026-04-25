@@ -59,7 +59,7 @@ cpu_t* init_cpu(uint64 frametime_ns, uint64 halted_frametime_ns) {
 	cpu->halted_frametime_ns = halted_frametime_ns;
 	cpu->tsc_start = emulator_read_tsc();
 
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setup CPU signals... (SIGHUP, SIGINT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGSEGV, SIGTERM, SIGSTKFLT, SIGTSTP, SIGXCPU, SIGXFSZ, SIGWINCH)\"");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setup CPU signals... (SIGHUP, SIGINT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGSEGV, SIGTERM, SIGSTKFLT, SIGTSTP, SIGXCPU, SIGXFSZ, SIGWINCH)");
 
 	cpu_setup_signals();
 
