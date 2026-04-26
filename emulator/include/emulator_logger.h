@@ -5,6 +5,10 @@
 
 #include "emulator_fwd.h"
 
+#include <stddef.h>
+
+#include <bits/types/FILE.h>
+
 typedef enum log_severity_e {
 	LOG_SEVERITY_VERBOSE,
 	LOG_SEVERITY_INFO,
@@ -12,12 +16,20 @@ typedef enum log_severity_e {
 	LOG_SEVERITY_ERROR,
 } log_severity_e;
 
-void init_emulator_logger();
+typedef struct logger_t {
+	char* msg; 		size_t msg_size;
+
+	char* last_msg; size_t last_msg_size, repeated_cnt;
+
+	FILE* log_file;
+} logger_t;
+
+logger_t* init_emulator_logger();
 
 void emulator_logger_set_emulator(emulator_t* _emulator);
 
 void emulator_log(bool mirror_stdout, log_severity_e severity, const char* format, ...);
 
-void free_emulator_logger();
+void free_emulator_logger(logger_t* logger);
 
 #endif

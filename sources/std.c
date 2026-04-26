@@ -134,8 +134,8 @@ void kprintf(const c_str format, ...) {
 				temp_i += 1;
 			}
 			
-			if (format[temp_i] == 'x' || format[temp_i] == 'x') {
-				kprint("0x"); print_num(va_arg(list, uint32), 16);
+			if (format[temp_i] == 'x') {
+				kprint("0x"); print_num(va_arg(list, int), 16);
 
 				temp_i += 1;
 			}
@@ -167,6 +167,8 @@ void kprintf(const c_str format, ...) {
 			putch('\n'); putch('\r');
 		}
 
+		else if (*c == '\0') break;
+		
 		else putch(*c);
 	}
 

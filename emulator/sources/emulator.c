@@ -2,9 +2,11 @@
 
 #include "cpu/emulator_cpu.h"
 
+#include "time/emulator_pit.h"
+
 #include "memory/emulator_ram.h"
 
-#include "vga/emulator_vga.h"
+#include "screen/emulator_vga.h"
 
 #include "time/emulator_cmos.h"
 
@@ -44,17 +46,20 @@
 
 static emulator_t* cur = nullptr;
 
-#ifdef IS_WIN
-#define sigsetjmp(__env, __val) setjmp(__env)
-#define siglongjmp(__env, __val) longjmp(__env, __val)
-#endif
-
-void emulator_setup_tick_timer(emulator_t* _emulator, tick_timer_handler_t handler, time_t ms) {
+tick_timer_t emulator_setup_tick_timer(emulator_t* _emulator, tick_timer_handler_t handler, time_t ms) {
 	emulator_t* emulator = _emulator;
 
 	if (!_emulator && cur) emulator = cur;
 
-	if (!emulator) return;
+	tick_timer_t timer = (tick_timer_t){ 
+		.handler = handler, .ms = ms, .last_time = emulator->ticks
+	};
+
+	if (!emulator) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot setup timer: no emulator instance provided");
+		
+		return timer;
+	}
 
 	if (emulator->tick_timers_cnt >= emulator->tick_timers_size) {
 		emulator->tick_timers_size += TICK_TIMERS_SIZE_STEP;
@@ -63,12 +68,12 @@ void emulator_setup_tick_timer(emulator_t* _emulator, tick_timer_handler_t handl
  	}
 
 	if (emulator->tick_timers) {
-		emulator->tick_timers[emulator->tick_timers_cnt] = (tick_timer_t){ 
-			.handler = handler, .ms = ms, .last_time = emulator->ticks
-		};
+		emulator->tick_timers[emulator->tick_timers_cnt] = timer;
+
+		emulator->tick_timers_cnt += 1;
 	}
 
-	emulator->tick_timers_cnt += 1;
+	return timer;
 }
 
 void emulator_release_tick_timer(emulator_t* _emulator, tick_timer_handler_t handler) {
@@ -109,26 +114,58 @@ void emulator_forced_update_all_timers(emulator_t* _emulator) {
 	}
 }
 
+void emulator_update_timer(tick_timer_t* tick_timer, uint64 cur_ticks) {
+	if (!tick_timer || !tick_timer->handler) {
+		emulator_log(false, LOG_SEVERITY_WARNING, "invalid tick timer pointer present");
+
+		return;
+	}
+
+	time_t dur = cur_ticks - tick_timer->last_time;
+
+	size_t repeated_cnt = 0;
+
+	if (dur >= tick_timer->ms) {
+		uint64 i = dur;
+
+		do {
+			tick_timer->handler();
+
+			i -= tick_timer->ms;
+		} while (i > tick_timer->ms);
+					
+		tick_timer->last_time = cur_ticks;
+	}
+}
+
 void emulator_update_all(emulator_t* _emulator) {
 	emulator_t* emulator = _emulator;
 
 	if (!_emulator && cur) emulator = cur;
 
-	if (!emulator) return;
+	if (!emulator) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot update all timers: no emulator instance provided");
+
+		return;
+	}
+
+	if (!emulator->tick_timers) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot update all timers: no emulator instance provided");
+
+		return;
+	}
 	
-	if (emulator->tick_timers && !emulator->is_hardware_reseting) {
+	if (!emulator->is_hardware_reseting) {
 		for (size_t i = 0; i < emulator->tick_timers_cnt; i++) {
 			tick_timer_t* tick_timer = &emulator->tick_timers[i];
 
-			if (!tick_timer->handler) continue;
+			emulator_update_timer(tick_timer, emulator->ticks);
 
 			time_t dur = emulator->ticks - tick_timer->last_time;
 
 			if (dur >= tick_timer->ms) {
-				tick_timer->handler();
-				
 				tick_timer->last_time = emulator->ticks;
-			}
+			} 
 		}
 	}
 
@@ -165,6 +202,10 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 			
 			return nullptr;
 		}
+
+		SDL_SetWindowMinimumSize(emulator->window, width, height);
+
+		SDL_SetWindowMaximumSize(emulator->window, width * 2, height * 2);
 
 		emulator->renderer = SDL_CreateRenderer(emulator->window, -1, SDL_RENDERER_ACCELERATED);
 		
@@ -238,9 +279,13 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 
 	emulator->ram = init_ram(8 * 1024 * 1024);
 
+	emulator->pit = init_pit(emulator->cpu->pic);
+
+	setup_pit(emulator);
+
 	#ifdef EMULATOR_SDL_USING
 	emulator->vga = init_vga_text_screen(
-		emulator->screen, emulator->screen_width, emulator->screen_height, 
+		emulator->screen_texture, emulator->screen, emulator->screen_width, emulator->screen_height, 
 		emulator->gui, emulator->ram, 80, 25
 	);
 	#else
@@ -325,7 +370,7 @@ struct kmain_start_args_t {
 	multiboot_info_t* multiboot;
 };
 
-void* kmain_start(void* args) {
+static void* kmain_start(void* args) {
 	if (!cur) return nullptr;
 
 	struct kmain_start_args_t* start_args = (struct kmain_start_args_t*)args;
@@ -405,6 +450,12 @@ void free_emulator(emulator_t* _emulator) {
 
 	emulator_forced_update_all_timers(emulator);
 	
+	if (emulator->pit) {
+		free_pit(emulator->pit); emulator->pit = nullptr;
+
+		release_pit(emulator, emulator->pit);
+	}
+	
 	if (emulator->cpu) {
 		clear_halt(emulator->cpu);
 
@@ -429,6 +480,12 @@ void free_emulator(emulator_t* _emulator) {
 	
 	if (emulator->ram) {
 		free_ram(emulator->ram); emulator->ram = nullptr;
+	}
+	
+	if (emulator->tick_timers) {
+		free(emulator->tick_timers); emulator->tick_timers = nullptr;
+
+		emulator->tick_timers_cnt = 0; emulator->tick_timers_size = 0;
 	}
 	
 	release_power_control();

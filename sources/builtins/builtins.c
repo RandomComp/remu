@@ -3,13 +3,16 @@
 #include "types.h"
 
 #ifndef FREE_STANDING_MODE
-extern void (*__emulator_wait_halt)(void);
+#include "kernel.h"
+
+extern __init_kernel_args_t kernel_args;
 #endif
 
 void halt() {
 	#ifdef FREE_STANDING_MODE
 	asm volatile("hlt");
 	#else
-	__emulator_wait_halt();
+	if (kernel_args.__emulator_wait_halt)
+		kernel_args.__emulator_wait_halt();
 	#endif
 }

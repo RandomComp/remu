@@ -3,9 +3,13 @@
 
 #include "types.h"
 
+#include "emulator_pic.h"
+
 #include <time.h>
 
 typedef struct cpu_t {
+	pic_t* pic;
+	
 	bool halted;
 
 	time_t frametime_ns;

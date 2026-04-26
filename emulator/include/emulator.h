@@ -3,9 +3,11 @@
 
 #include "cpu/emulator_cpu.h"
 
+#include "time/emulator_pit.h"
+
 #include "memory/emulator_ram.h"
 
-#include "vga/emulator_vga.h"
+#include "screen/emulator_vga.h"
 
 #include "time/emulator_cmos.h"
 
@@ -35,7 +37,7 @@ typedef struct tick_timer_t {
 
 #define FRAMETIME_NS (1000 * 1000 * 20)
 
-#define HALTED_FRAMETIME_NS (1000 * 1000 * 200)
+#define HALTED_FRAMETIME_NS (1000 * 1000 * 100)
 
 #define TICK_TIMERS_SIZE_STEP (4)
 
@@ -43,7 +45,7 @@ typedef struct tick_timer_t {
 
 #define EMULATOR_VERSION_FULL_STR EMULATOR_VERSION_STR " (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " %i.%i " PLATFORM_ARCH
 
-#define EMULATOR_INFO_FULL_STR "OS Emulator (GPL V3.0) " EMULATOR_VERSION_FULL_STR " by RDev."
+#define EMULATOR_INFO_FULL_STR "OS Emulator, IBM-PC compatible (GPL V3.0) " EMULATOR_VERSION_FULL_STR " by RDev."
 
 #define EMULATOR_INFO_STR "OS Emulator " EMULATOR_VERSION_STR " by RDev"
 
@@ -53,6 +55,8 @@ typedef struct tick_timer_t {
 
 struct emulator_t {
 	cpu_t* cpu;
+
+	pit_t* pit;
 
 	ram_t* ram;
 
@@ -97,7 +101,7 @@ struct emulator_t {
 	#endif
 };
 
-void emulator_setup_tick_timer(emulator_t* emulator, tick_timer_handler_t handler, time_t ms);
+tick_timer_t emulator_setup_tick_timer(emulator_t* emulator, tick_timer_handler_t handler, time_t ms);
 
 void emulator_release_tick_timer(emulator_t* emulator, tick_timer_handler_t handler);
 

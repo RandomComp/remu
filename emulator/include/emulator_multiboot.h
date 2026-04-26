@@ -146,7 +146,7 @@ typedef struct multiboot_info_t {
 	};
 } multiboot_info_t;
 
-typedef struct multiboot_mmap_entry_t {
+typedef struct PACKED multiboot_mmap_entry_t {
 	uint32 size;
 
 	uint32 addr_low;
@@ -158,6 +158,6 @@ typedef struct multiboot_mmap_entry_t {
 	uint32 len_high;
 
 	uint32 type;
-} multiboot_mmap_entry_t __attribute__((packed));
+} multiboot_mmap_entry_t;
 
 #endif

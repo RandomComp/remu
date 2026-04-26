@@ -388,12 +388,16 @@ static void send_make(byte scancode) {
 	cur->pressed_key[writed_cnt] = scancode;
 
 	writed_cnt = (writed_cnt + 1) % 4;
+
+	call_emulator_int(nullptr, 0x21);
 }
 
 static void send_brake(byte scancode) {
 	if (!cur) return;
 
 	send_make(scancode | 0x80);
+
+	call_emulator_int(nullptr, 0x21);
 }
 
 #ifdef EMULATOR_SDL_USING

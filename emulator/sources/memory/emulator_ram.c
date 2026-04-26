@@ -14,8 +14,8 @@
 #include <sys/mman.h>
 #endif
 
-ram_t* init_ram(_size_t mem_size) {
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "RAM initialization (%llx bytes)...", mem_size);
+ram_t* init_ram(size_t mem_size) {
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "RAM initialization (%zx bytes)...", mem_size);
 
 	ram_t* ram = malloc(sizeof(ram_t));
 
@@ -23,7 +23,11 @@ ram_t* init_ram(_size_t mem_size) {
 
 	ram->mem_size = mem_size;
 
+	#ifdef IS_UNIX
 	ram->mem_ptr = mmap(null, ram->mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	#else
+	ram->mem_ptr = malloc(ram->mem_size);
+	#endif
 
 	memset(ram->mem_ptr, 0, ram->mem_size);
 
@@ -47,9 +51,15 @@ void free_ram(ram_t* ram) {
 
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "RAM deinitialization...");
 
+	#ifdef IS_UNIX
 	if (ram->mem_ptr && ram->mem_size > 0) {
 		munmap(ram->mem_ptr, ram->mem_size);
 	}
+	#else
+	if (ram->mem_ptr) free(ram->mem_ptr);
+	#endif
+
+	ram->mem_ptr = nullptr;
 
 	free(ram);
 

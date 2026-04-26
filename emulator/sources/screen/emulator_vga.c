@@ -1,4 +1,4 @@
-#include "vga/emulator_vga.h"
+#include "screen/emulator_vga.h"
 
 #include "types.h"
 
@@ -81,8 +81,6 @@ static vga_text_screen_t* cur = nullptr;
 static bool attrib_flip_trigger_flag = false;
 
 static byte attrib_reg = 0, display_vidmem = 0;
-
-extern emulator_t* emulator;
 
 static _size_t attrib_flip_trigger() {
 	if (!cur) return 0;
@@ -181,6 +179,18 @@ static _size_t crt_read_reg() {
 	return 0;
 }
 
+// static byte sequence_sel_reg = 0;
+
+// static void sequence_reg_select(_size_t reg) {
+// 	reg = reg & 0xFF;
+
+// 	if (reg == )
+// }
+
+// static void sequence_reg_write_data(_size_t data) {
+
+// }
+
 static void update_cur_vga_screen() {
 	if (!cur) return;
 
@@ -270,7 +280,7 @@ static byte* load_png_font(const char* file_name, size_t* w, size_t* h) {
 #endif
 
 #ifdef EMULATOR_SDL_USING
-vga_text_screen_t* init_vga_text_screen(uint32* screen, _size_t screen_width, _size_t screen_height, bool gui, ram_t* ram, _ssize_t columns, _ssize_t rows)
+vga_text_screen_t* init_vga_text_screen(SDL_Texture* screen_texture, uint32* screen, _size_t screen_width, _size_t screen_height, bool gui, ram_t* ram, _ssize_t columns, _ssize_t rows)
 #else
 vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t rows)
 #endif
@@ -313,6 +323,8 @@ vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t r
 
 	vga->gui = gui;
 
+	vga->emulator_screen_texture = screen_texture;
+
 	vga->emulator_screen = screen;
 
 	vga->emulator_screen_width = screen_width;
@@ -325,8 +337,6 @@ vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t r
 		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot load emulator cp437 font");
 
 		free(vga);
-
-		free_emulator_logger();
 
 		imd_exit_emulator(1);
 
@@ -357,6 +367,12 @@ vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t r
 	emulator_setup_port_out(0x3D4, crt_select_reg);
 	emulator_setup_port_out(0x3D5, crt_write_reg);
 	emulator_setup_port_in(0x3D5, crt_read_reg);
+
+	// emulator_setup_port_out(0x3C4, sequence_reg_select);
+	// emulator_setup_port_out(0x3C5, sequence_reg_write_data);
+
+	// emulator_setup_port_out(0x3CE, sequence_reg_select);
+	// emulator_setup_port_out(0x3CF, sequence_reg_write_data);
 	
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text screen initialized");
 
@@ -491,6 +507,10 @@ int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
 	}
 
 	for (size_t i = 0; i < vga->width * vga->height; i++) {
+		if ((cur->mode_reg & 0x20) == 0) {
+			draw_vga_ch(vga, ' ', false, 0, 0, i, 0);
+		}
+
 		uint16 ch_and_style = vga->vidmem[i];
 
 		byte ch = ch_and_style & 0xFF;
@@ -500,6 +520,16 @@ int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
 		byte fg_style = style & 0xF;
 
 		byte bg_style = (style >> 4) & 0xF;
+
+		bool bg_bright = bg_style & 0x8;
+			
+		if ((cur->mode_reg & 0x08) != 0) {
+			bg_style = bg_style % 8;
+
+			if (bg_bright && !blinking_text_visible) {
+				draw_vga_ch(vga, ' ', false, 0, 0, i, 0); continue;
+			}
+		}
 
 		if (i == vga->cursor_pos && blinking_text_visible) {
 			draw_vga_ch(vga, '_', false, 0, 0xFFFFFF, i, 0);
@@ -588,7 +618,7 @@ void draw_vga_text_screen(vga_text_screen_t* vga) {
 	else {
 		draw_vga_text_screen_gui(vga);
 
-		SDL_UpdateTexture(emulator->screen_texture, null, emulator->screen, emulator->screen_width * sizeof(uint32));
+		SDL_UpdateTexture(vga->emulator_screen_texture, null, vga->emulator_screen, vga->emulator_screen_width * sizeof(uint32));
 	}
 	#else
 	draw_vga_text_screen_cli(vga);
@@ -634,9 +664,9 @@ void free_vga_text_screen(vga_text_screen_t* vga) {
 void release_all_vga_text_screen(vga_text_screen_t* screen) {
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "Releasing timer updating vga screen (33 hz) and text blinking timer (2 hz)...");
 
-	emulator_release_tick_timer(nullptr, &update_cur_vga_screen);
+	emulator_release_tick_timer(nullptr, update_cur_vga_screen);
 
-	emulator_release_tick_timer(nullptr, &text_blink_update);
+	emulator_release_tick_timer(nullptr, text_blink_update);
 	
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "Releasing VGA ports (0x3DA, 0x3C0, 0x3C1)...");
 

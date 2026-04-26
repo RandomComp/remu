@@ -3,8 +3,24 @@
 
 #include "types.h"
 
-#include "multiboot.h"
+#include "idt.h"
 
-void kmain(uint32 magic, multiboot_info_t* ptr);
+#ifndef FREE_STANDING_MODE
+typedef struct __init_kernel_args_t {
+	void* (*__emulator_get_ram)(void);
+
+	size_t (*__emulator_port_in)(uint16 port);
+
+	void (*__emulator_port_out)(uint16 port, size_t value);
+
+	void (*__emulator_wait_halt)(void);
+
+	uint64 (*__emulator_start_tsc)(void);
+
+	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
+
+	void (*__emulator_exec_all_ints)();
+} __init_kernel_args_t;
+#endif
 
 #endif

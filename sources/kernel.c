@@ -1,3 +1,5 @@
+#include "kernel.h"
+
 #include "types.h"
 
 #include "std.h"
@@ -12,6 +14,8 @@
 
 #include "drivers/power.h"
 
+#include "drivers/time/tsc.h"
+
 #include "drivers/time/cmos.h"
 
 #include "multiboot.h"
@@ -20,7 +24,9 @@
 
 #include "drivers/video/vga.h"
 
-static byte* ram = nullptr;
+#include "gdt.h"
+
+#include "idt.h"
 
 typedef enum scancode_e {
 	SCANCODE_NULL,
@@ -201,8 +207,35 @@ static uint8 unshift(uint8 c) {
 	return unshift_sym[c];
 }
 
+typedef enum key_state_t {
+	KEY_STATE_NULL,
+	KEY_STATE_PRESSED,
+	KEY_STATE_HOLDED,
+	KEY_STATE_RELEASED
+} key_state_t;
+
+static 
+
+void pool_kbdps2() {
+	
+}
+
+#ifndef FREE_STANDING_MODE
+__init_kernel_args_t kernel_args = { 0 };
+
+void __emulator_init_kernel(__init_kernel_args_t _kernel_args) {
+	kernel_args = _kernel_args;
+}
+#endif
+
+void kbd_handler(struct registers_t *regs) {
+	in8(0x64); in8(0x60);
+
+	kprintf("Keyboard interrupt\n");
+}
+
 void kmain(uint32 magic, multiboot_info_t* multiboot) {
-	ram = (byte*)get_ram();
+	byte* ram = (byte*)get_ram();
 
 	init_std(ram + 0xB8000);
 
@@ -211,18 +244,20 @@ void kmain(uint32 magic, multiboot_info_t* multiboot) {
 	clear_screen(style);
 
 	set_style(style);
-	
-	disable_blink();
 
-	for (size_t i = 0; i < 16; i++) {
-		for (size_t j = 0; j < 6; j++) {
-			set_style(i | (j << 4));
+	kprintf("Hello, world!\n");
 
-			kprintf("Hello, world!");
-		}
+	// kprintf("GDT initialization...");
 
-		kprintf("\n");
-	}
+	// gdt_init();
+
+	// kprintf(" done\n");
+
+	kprintf("IDT initialization...");
+
+	idt_init();
+
+	kprintf(" done\n");
 
 	for (;;) halt();
 }

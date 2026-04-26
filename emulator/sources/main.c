@@ -45,7 +45,9 @@
 struct termios* orig_termios;
 #endif
 
-emulator_t* emulator = nullptr;
+static emulator_t* emulator = nullptr;
+
+logger_t* logger = nullptr;
 
 // TODO: Сделать двойной буфер видеопамяти
 
@@ -62,7 +64,7 @@ static void on_emulator_exit() {
 
 	printf("\n\r");
 
-	imd_exit_emulator(0);
+	// imd_exit_emulator(0);
 }
 
 void exit_emulator(int code) {
@@ -113,11 +115,9 @@ void imd_exit_emulator(int code) {
 		
 		emulator->kmain_thread = 0;
 
-		// TODO: Починить баг с освобождением handle_keys_cli
-
-		// #ifndef EMULATOR_SDL_USING
-		// emulator_release_tick_timer(emulator, handle_keys_cli);
-		// #endif
+		#ifndef EMULATOR_SDL_USING
+		emulator_release_tick_timer(emulator, handle_keys_cli);
+		#endif
 
 		free_emulator(emulator);
 
@@ -129,24 +129,36 @@ void imd_exit_emulator(int code) {
 		emulator = nullptr;
 	}
 
-	free_emulator_logger();
-}
+	if (logger) free_emulator_logger(logger);
 
-static void timer_handler(int sig) {
-	if (!emulator) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot handle the timer: no emulator instance provided");
-
-		imd_exit_emulator(1);
-
-		return;
-	}
-
-	emulator_update_all(emulator);
+	logger = nullptr;
 }
 
 // extern void printf(const char* format, int len);
 
 // extern void exit123(int);
+
+typedef struct __init_kernel_args_t {
+	void* (*__emulator_get_ram)(void);
+
+	_size_t (*__emulator_port_in)(uint16 port);
+
+	void (*__emulator_port_out)(uint16 port, _size_t value);
+
+	void (*__emulator_wait_halt)(void);
+
+	uint64 (*__emulator_start_tsc)(void);
+
+	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
+
+	void (*__emulator_exec_all_ints)();
+} __init_kernel_args_t;
+
+void exec_all_ints_in_queue() {
+	if (!emulator || !emulator->cpu || !emulator->cpu->pic) return;
+
+	exec_all_emulator_ints(emulator->cpu->pic);
+}
 
 static void* emulator_get_ram() {
 	if (!emulator) {
@@ -158,22 +170,48 @@ static void* emulator_get_ram() {
 	return emulator->ram->mem_ptr;
 }
 
+static bool cpu_need_to_halt = false;
+
+static uint64 itval_ns = 0;
+
 void wait_halt() {
-	if (emulator) {
-		set_halt(emulator->cpu);
-		
-		usleep(cpu_get_itval_ns(emulator->cpu) / 1000);
-	}
+	exec_all_ints_in_queue();
+	
+	usleep(itval_ns / 1000);
+
+	cpu_need_to_halt = true;
 }
 
-int main() {
+uint64 start_tsc() {
+	return emulator && emulator->cpu ? emulator->cpu->tsc_start : 0;
+}
+
+int main(int argc, const char** argv) {
 	#ifdef IS_WIN
 	printf("This emulator now is not fully supported on windows, use it for your own risk\n\r");
 	#endif
 
-	atexit(on_emulator_exit);
+	logger = init_emulator_logger();
 
-	init_emulator_logger();
+	if (argc > 2) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Too many arguments. Expected only one argument: kernel ./*.so file");
+
+		free_emulator_logger(logger);
+
+		return 1;
+	}
+
+	else if (argc < 2) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Too few arguments. Expected only one argument: kernel ./*.so file");
+
+		free_emulator_logger(logger);
+
+		return 1;
+	}
+
+	const c_str so_name = argv[1];
+
+	atexit(on_emulator_exit);
 
 	#ifdef EMULATOR_SDL_USING
 	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -226,30 +264,24 @@ int main() {
 
 	// get_terminal_size(&columns, &rows);
 
-	emulator_log(true, LOG_SEVERITY_INFO, "OS \"emulator_os.so\" loading...");
-
-	const c_str so_name = "./emulator_os.so";
+	emulator_log(true, LOG_SEVERITY_INFO, "Kernel \"%s\" loading...", so_name);
 
 	void* os_handle = dlopen(so_name, RTLD_LAZY);
 
 	if (!os_handle) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "dlopen error. Did you forgot to compile OS?");
+		emulator_log(true, LOG_SEVERITY_ERROR, "dlopen error. Did you forgot to compile kernel?");
 
 		return 1;
 	}
 
-	void (*__emulator_init_os_kernel)(
-	void* (*__get_ram)(void), 
-	_size_t (*__port_in)(uint16 port), 
-	void (*__port_out)(uint16 port, _size_t value),
-	void (*wait_halt)(void));
+	void (*__emulator_init_kernel)(__init_kernel_args_t kernel_args);
 
 	void (*kmain)(uint32 magic, multiboot_info_t* multiboot);
 
-	__emulator_init_os_kernel = dlsym(os_handle, "__emulator_init_os_kernel");
+	__emulator_init_kernel = dlsym(os_handle, "__emulator_init_kernel");
 	
-	if (!__emulator_init_os_kernel) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"__emulator_init_os_kernel\" in provided \"%s\". Check out the function name.", so_name);
+	if (!__emulator_init_kernel) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"__emulator_init_kernel\" in provided \"%s\". Please verify the function name.", so_name);
 
 		dlclose(os_handle);
 
@@ -259,14 +291,14 @@ int main() {
 	kmain = dlsym(os_handle, "kmain");
 
 	if (!kmain) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"kmain\" in provided \"%s\". Check out the function name.", so_name);
+		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"kmain\" in provided \"%s\". Please verify the function name.", so_name);
 
 		dlclose(os_handle);
 
 		return 1;
 	}
 
-	emulator_log(true, LOG_SEVERITY_INFO, "OS \"%s\" loaded!", so_name);
+	emulator_log(true, LOG_SEVERITY_INFO, "Kernel \"%s\" loaded!", so_name);
 	
 	struct timespec ts;
 
@@ -274,11 +306,27 @@ int main() {
 
 	uint64 init_start_time = (ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
 
-	emulator = init_emulator(true, 640, 400, FRAMETIME_NS, FRAMETIME_NS);
+	emulator = init_emulator(true, 640, 400, FRAMETIME_NS, HALTED_FRAMETIME_NS);
+
+	#ifdef EMULATOR_SDL_USING
+	SDL_SetWindowSize(emulator->window, 640 * 2, 400 * 2);
+
+	SDL_SetWindowPosition(emulator->window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+	#endif
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Kernel initializing...");
 
-	__emulator_init_os_kernel(emulator_get_ram, port_in, port_out, wait_halt);
+	__init_kernel_args_t kernel_args = { 0 };
+
+	kernel_args.__emulator_get_ram = emulator_get_ram;
+	kernel_args.__emulator_port_in = port_in;
+	kernel_args.__emulator_port_out = port_out;
+	kernel_args.__emulator_wait_halt = wait_halt;
+	kernel_args.__emulator_start_tsc = start_tsc;
+	kernel_args.__emulator_idt_flush = idt_flush_emulator;
+	kernel_args.__emulator_exec_all_ints = exec_all_ints_in_queue;
+
+	__emulator_init_kernel(kernel_args);
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Kernel initialized!");
 
@@ -300,7 +348,13 @@ int main() {
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Initialization duration: %llu us", emulator_init_dur);
 
-	draw_vga_text(emulator->vga, "OS Booting...", 0x1F, 32, 11);
+	const c_str msg = "OS Booting (Loader message)..."; const size_t msg_len = strlen(msg);
+
+	const _size_t centered_column = (emulator->vga->width / 2) - (msg_len / 2);
+
+	const _size_t centered_row = (emulator->vga->height / 2) - 1;
+
+	draw_vga_text(emulator->vga, msg, 0x1F, centered_column, centered_row);
 
 	pthread_t kmain_thread = run_emulator(emulator, kmain);
 
@@ -333,9 +387,17 @@ int main() {
 		SDL_SetRenderDrawColor(emulator->renderer, 0, 0, 0, 255);
 		SDL_RenderClear(emulator->renderer);
 
+		// TODO: обновлять экран только при необходимости
+
 		SDL_RenderCopy(emulator->renderer, emulator->screen_texture, null, null);
 
 		SDL_RenderPresent(emulator->renderer);
+
+		if (!emulator->cpu->halted && cpu_need_to_halt) {
+			set_halt(emulator->cpu);
+		}
+			
+		itval_ns = cpu_get_itval_ns(emulator->cpu);
 
 		usleep(cpu_get_itval_ns(emulator->cpu) / 1000);
 	}

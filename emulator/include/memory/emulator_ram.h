@@ -3,13 +3,15 @@
 
 #include "types.h"
 
+#include <stddef.h>
+
 typedef struct ram_t {
 	byte* mem_ptr;
 
-	_size_t mem_size;
+	size_t mem_size;
 } ram_t;
 
-ram_t* init_ram(_size_t mem_size);
+ram_t* init_ram(size_t mem_size);
 
 void reset_ram(ram_t* ram);
 

@@ -1,7 +1,7 @@
 #ifndef _EMULATOR_BASIC_TYPES_H
 #define _EMULATOR_BASIC_TYPES_H
 
-// Полностью заимствованно из Random OS Boosted
+// Фактически заимствованно из R-OS Boosted (ранее Random OS Boosted)
 
 #define true 1
 

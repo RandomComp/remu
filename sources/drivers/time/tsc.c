@@ -1,10 +1,16 @@
 #include "drivers/time/tsc.h"
 
+#include "drivers/time/cmos.h"
+
 #include "types.h"
 
 #include "std.h"
 
-#include "drivers/time/cmos.h"
+#ifndef FREE_STANDING_MODE
+#include "kernel.h"
+
+extern __init_kernel_args_t kernel_args;
+#endif
 
 uint64 read_tsc() {
 	uint32 lo = 0, hi = 0;
@@ -12,6 +18,11 @@ uint64 read_tsc() {
 	asm volatile("rdtsc" : "=a"(lo), "=d"(hi));
 
 	uint64 result = ((uint64)hi << 32) | ((uint64)lo);
+
+	#ifndef FREE_STANDING_MODE
+	if (kernel_args.__emulator_start_tsc)
+		result -= kernel_args.__emulator_start_tsc();
+	#endif
 
 	return result;
 }

@@ -121,13 +121,13 @@ typedef signed short int16;
 
 #if defined(BITS_16)
 
-typedef uint16 _size_t;
-typedef int16 _ssize_t;
+typedef uint16 size_t;
+typedef int16 ssize_t;
 
 #elif defined(BITS_32)
 
-typedef uint32 _size_t;
-typedef int32 _ssize_t;
+typedef uint32 size_t;
+typedef int32 ssize_t;
 
 #elif defined(BITS_64)
 

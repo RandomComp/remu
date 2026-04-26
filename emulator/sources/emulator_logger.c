@@ -22,20 +22,26 @@ static log_severity_e min_log_severity_showing = 0; // 0 для отключен
 
 static log_severity_e max_log_severity_showing = 10; // 0 для отключения логов
 
-static char* msg = nullptr; static size_t msg_size = 0;
+static emulator_t* emulator = nullptr; // ONLY for ticks
 
-static char* last_msg = nullptr; static size_t last_msg_size = 0, repeated_cnt = 0;
+static logger_t* cur = nullptr;
 
-static FILE* log_file = nullptr; static long repeated_log_start = 0;
+logger_t* init_emulator_logger() {
+	logger_t* logger = malloc(sizeof(logger_t));
 
-static emulator_t* emulator = nullptr;
+	memset(logger, 0, sizeof(logger_t));
 
-void init_emulator_logger() {
-	log_file = fopen("emulator.log", "a");
+	logger->log_file = fopen("emulator.log", "a");
 
-	if (!log_file) {
+	if (!logger->log_file) {
 		printf("Unable to open log file, log will be shadowing in stdout\n\r");
 	}
+
+	cur = logger;
+
+	// TODO: сделать указание времени через rdtsc и timespec_get
+
+	return logger;
 }
 
 void emulator_logger_set_emulator(emulator_t* _emulator) {
@@ -44,9 +50,12 @@ void emulator_logger_set_emulator(emulator_t* _emulator) {
 	emulator = _emulator;
 }
 
+// Log any emulator message to file and terminal, 
 void emulator_log(bool mirror_stdout, log_severity_e severity, const char* format, ...) {
 	if (severity >= max_log_severity || 
 		severity < min_log_severity) return;
+	
+	if (!cur) return;
 
 	#ifdef EMULATOR_SDL_USING
 	mirror_stdout = true;
@@ -84,46 +93,46 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 
 	size_t msg_len = vsnprintf(null, 0, format, args2) + 1;
 
-	if (!msg || msg_size < msg_len) {
-		msg = realloc(msg, msg_len);
+	if (!cur->msg || cur->msg_size < msg_len) {
+		cur->msg = realloc(cur->msg, msg_len);
 
-		msg_size = msg_len;
+		cur->msg_size = msg_len;
 	}
 
-	memset(msg, 0, msg_len);
+	memset(cur->msg, 0, msg_len);
 
-	vsnprintf(msg, msg_len, format, args);
+	vsnprintf(cur->msg, msg_len, format, args);
 
-	if (last_msg && strcmp(last_msg, msg) == 0)
-		repeated_cnt++;
+	if (cur->last_msg && strcmp(cur->last_msg, cur->msg) == 0)
+		cur->repeated_cnt++;
 
 	else {
-		if (last_msg && repeated_cnt > 0) {
-			fprintf(log_file, "... and repeated %zu times\n", repeated_cnt);
+		if (cur->last_msg && cur->repeated_cnt > 0) {
+			fprintf(cur->log_file, "... and repeated %zu times\n", cur->repeated_cnt);
 		}
 
-		repeated_cnt = 0;
+		cur->repeated_cnt = 0;
 	}
 
-	if (log_file) {
-		if (repeated_cnt == 0) {
-			fprintf(log_file, "[%llu][%s] %s\n", ticks, severities_name[severity_index], msg);
+	if (cur->log_file) {
+		if (cur->repeated_cnt == 0) {
+			fprintf(cur->log_file, "[%llu][%s] %s\n", ticks, severities_name[severity_index], cur->msg);
 		}
 
-		if (severity >= LOG_SEVERITY_WARNING) fflush(log_file);
+		if (severity >= LOG_SEVERITY_WARNING) fflush(cur->log_file);
 	}
 
-	if ((!log_file || mirror_stdout) && 
+	if ((!cur->log_file || mirror_stdout) && 
 		severity >= min_log_severity_showing && 
 		severity < max_log_severity_showing) {
-		if (repeated_cnt == 0) {
-			printf(default_style "\n\r[%llu][%s]%s %s" default_style, ticks, severities_name[severity_index], severities_color[severity_index], msg);
+		if (cur->repeated_cnt == 0) {
+			printf(default_style "\n\r[%llu][%s]%s %s" default_style, ticks, severities_name[severity_index], severities_color[severity_index], cur->msg);
 		}
 		
 		else {
-			if (repeated_cnt == 1) printf("\n\r");
+			if (cur->repeated_cnt == 1) printf("\n\r");
 
-			printf("\r" default_style "... and repeated %zu times" default_style, repeated_cnt);
+			printf("\r" default_style "... and repeated %zu times" default_style, cur->repeated_cnt);
 		}
 
 		// fflush(stdout);
@@ -131,23 +140,47 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 		if (severity >= LOG_SEVERITY_WARNING) fflush(stdout);
 	}
 
-	if (!last_msg || last_msg_size < msg_len) {
-		last_msg = realloc(last_msg, msg_len);
+	if (!cur->last_msg || cur->last_msg_size < msg_len) {
+		cur->last_msg = realloc(cur->last_msg, msg_len);
 
-		last_msg_size = msg_len;
+		cur->last_msg_size = msg_len;
 	}
 
-	memcpy(last_msg, msg, msg_len);
+	memcpy(cur->last_msg, cur->msg, msg_len);
 }
 
-void free_emulator_logger() {
-	if (msg) free(msg);
+void free_emulator_logger(logger_t* logger) {
+	if (!logger) {
+		printf("Cannot deinitialize logger: no logger instance provided\n\r");
 
-	msg = nullptr; msg_size = 0;
+		return;
+	}
 
-	if (last_msg) free(last_msg);
+	emulator = nullptr;
 
-	last_msg = nullptr; last_msg_size = 0;
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "Logger deinitializing...");
 
 	printf("\n\r");
+
+	printf("Logger msg deinitializing...\n\r");
+
+	if (logger->msg) free(logger->msg);
+
+	logger->msg = nullptr; logger->msg_size = 0;
+
+	printf("Logger msg deinitialized!\n\r");
+
+	printf("Logger last msg deinitializing...\n\r");
+
+	if (logger->last_msg) free(logger->last_msg);
+
+	logger->last_msg = nullptr; logger->last_msg_size = 0;
+
+	printf("Logger last msg deinitialized!\n\r");
+
+	if (logger) free(logger); logger = nullptr;
+
+	if (cur == logger) cur = nullptr;
+
+	printf("Logger deinitialized!\n\r");
 }
