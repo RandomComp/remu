@@ -48,6 +48,14 @@ vga_text_screen_t* init_vga_text_screen(ram_t* ram, _ssize_t columns, _ssize_t r
 
 void clear_vga_text_screen(vga_text_screen_t* screen);
 
+void handle_copy_selected();
+
+void handle_paste_selected();
+
+void handle_mouse_move(size_t x, size_t y, int win_x, int win_y);
+
+void handle_mouse_button(size_t x, size_t y, int win_x, int win_y, bool released);
+
 int draw_vga_text(vga_text_screen_t* vga, const c_str text, byte style, _size_t column, _size_t row);
 
 void draw_vga_text_screen(vga_text_screen_t* screen);

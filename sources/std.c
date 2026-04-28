@@ -2,17 +2,15 @@
 
 #include "types.h"
 
+#include "colors.h"
+
 #include "builtins/string.h"
 
 #include "drivers/video/vga.h"
 
 #include "math/math.h"
 
-#define columns 80
-
-#define rows 25
-
-#define vidmem_size (columns * rows)
+#define vidmem_size (STD_COLUMNS * STD_ROWS)
 
 static uint16* vidmem = nullptr;
 
@@ -31,6 +29,8 @@ void init_std(uint16* _vidmem) {
 void clear_screen(byte style) {
 	if (!vidmem) return;
 
+	set_cursor_pos(0, 0);
+
 	for (size_t i = 0; i < vidmem_size; i++) {
 		vidmem[i] = (uint16)style << 8;
 	}
@@ -39,11 +39,14 @@ void clear_screen(byte style) {
 void putch(byte c) {
 	if (!vidmem) return;
 
-	ssize_t cur_pos = (cur_y * columns) + cur_x;
+	ssize_t cur_pos = (cur_y * STD_COLUMNS) + cur_x;
 	
 	switch (c) {
 		case '\b':
 			cur_x -= 1; break;
+
+		case '\t':
+			cur_x += 4; break;
 		
 		case '\n':
 			cur_y += 1; break;
@@ -58,42 +61,130 @@ void putch(byte c) {
 			cur_x += 1;
 	}
 
-	cur_pos = CLAMP((cur_y * columns) + cur_x, 0, columns * rows);
+	cur_pos = CLAMP((cur_y * STD_COLUMNS) + cur_x, 0, STD_COLUMNS * STD_ROWS);
 
-	set_cursor_pos(cur_pos % columns, cur_pos / columns);
+	set_cursor_pos(cur_pos % STD_COLUMNS, cur_pos / STD_COLUMNS);
 
-	while (cur_y >= rows) {
-		for (size_t i = 0; i < rows - 1; i++) {
+	while (cur_y >= STD_ROWS) {
+		for (size_t i = 0; i < STD_ROWS - 1; i++) {
 			size_t next_i = i + 1;
 
-			memcpy(vidmem + (i * columns), vidmem + (next_i * columns), columns * 2);
+			memcpy(vidmem + (i * STD_COLUMNS), vidmem + (next_i * STD_COLUMNS), STD_COLUMNS * 2);
 		}
 
-		memset(vidmem + ((rows - 1) * columns), 0, columns * 2);
+		memset(vidmem + ((STD_ROWS - 1) * STD_COLUMNS), 0, STD_COLUMNS * 2);
 
 		cur_y--;
 	}
+}
+
+void clear_line() {
+	ssize_t old_x = cur_x, old_y = cur_y;
+
+	for (size_t i = 0; i < COLUMNS - cur_x; i++) {
+		putch(' ');
+	}
+
+	set_cursor_pos(old_x, old_y);
 }
 
 void kprint(const c_str str) {
 	if (!vidmem) return;
 
 	for (size_t i = 0; str[i]; i++) {
-		putch(str[i]);
+		if (str[i] == '\n') {
+			putch('\n'); putch('\r');
+		}
+		
+		else putch(str[i]);
 	}
 }
 
-void kprintf(const c_str format, ...) {
-	if (!vidmem) return;
+size_t parse_ext_specf(const char* format, byte def_style) {
+	bool brighted = false;
 
-	va_list list;
+	bool foreground = true;
 
-	va_start(list, format);
+	bool background = false;
+
+	size_t temp_i = 0; 
+
+	if (format[temp_i] == 'f') {
+		foreground = true; background = false;
+
+		temp_i += 1;
+	}
+
+	else if (format[temp_i] == 'b') {
+		foreground = false; background = true;
+
+		temp_i += 1;
+	}
+
+	if (format[temp_i] == 'b') {
+		brighted = true;
+
+		temp_i += 1;
+	}
+
+	if (format[temp_i] == 'd') {
+		set_style(def_style);
+
+		temp_i += 1;
+	}
+
+	else {
+		const char supported_colors[] = "augqrmyw";
+		
+		const byte colors_available[] = { 
+			COLOR_BLACK,
+			COLOR_BLUE,
+			COLOR_GREEN,
+			COLOR_AQUA,
+			COLOR_RED,
+			COLOR_MAGENTA,
+			COLOR_BROWN,
+			COLOR_WHITE,
+		};
+
+		bool is_supported = false;
+
+		size_t index = 0;
+
+		for (index = 0; index < sizeof(supported_colors); index++) {
+			if (supported_colors[index] == format[temp_i]) {
+				is_supported = true;
+				
+				break;
+			}
+		}
+
+		if (is_supported) {
+			byte color = colors_available[index] | (brighted << 3);
+
+			if (background)
+				color = (color << 4) | (get_style() & 0xF);
+			else if (foreground)
+				color = color | ((get_style() >> 4) & 0xF);
+
+			set_style(color);
+
+			temp_i += 1;
+		}
+	}
+
+	return temp_i;
+}
+
+size_t vsprintf(char* s, const c_str format, va_list list) {
+	byte def_style = cur_style;
+
+	size_t w_index = 0;
 
 	for (size_t i = 0; format[i]; i++) {
 		char* c = format + i;
 
-		if (*c == '%') {
+		while (*c == '%') {
 			size_t temp_i = i + 1;
 			
 			bool padding = false; // false -- right padding, true -- left padding
@@ -102,63 +193,77 @@ void kprintf(const c_str format, ...) {
 
 			bool print_num_sign = false;
 
-			if (format[temp_i] == '-') {
-				padding = true;
+			// if (format[temp_i] == '-') {
+			// 	padding = true;
 
-				temp_i += 1;
-			}
+			// 	temp_i += 1;
+			// }
 
-			else if (format[temp_i] == '+') {
-				print_num_sign = true;
+			// else if (format[temp_i] == '+') {
+			// 	print_num_sign = true;
 
-				temp_i += 1;
-			}
+			// 	temp_i += 1;
+			// }
 
-			else if (format[temp_i] == '0') {
-				padding_c = '0';
+			// else if (format[temp_i] == '0') {
+			// 	padding_c = '0';
 
-				temp_i += 1;
-			}
+			// 	temp_i += 1;
+			// }
 
 			
 
 			if (format[temp_i] == 'l') {
-				print_num(va_arg(list, uint64), 10);
+				print_num(va_arg(list, uint64), 10, false);
 
 				temp_i += 1;
 			}
 			
-			if (format[temp_i] == 'i') {
-				print_num(va_arg(list, int), 10);
+			else if (format[temp_i] == 'i') {
+				int num = va_arg(list, int);
+
+				print_num(num, 10, (num < 0));
 
 				temp_i += 1;
 			}
 			
-			if (format[temp_i] == 'x') {
-				kprint("0x"); print_num(va_arg(list, int), 16);
+			else if (format[temp_i] == 'x') {
+				int num = va_arg(list, int);
+
+				kprint("0x"); print_num(num, 16, num < 0);
 
 				temp_i += 1;
 			}
 			
-			if (format[temp_i] == 'b') {
-				kprint("0b"); print_num(va_arg(list, int), 2);
+			else if (format[temp_i] == 'b') {
+				int num = va_arg(list, int);
+
+				kprint("0b"); print_num(num, 2, num < 0);
 
 				temp_i += 1;
 			}
 
-			if (format[temp_i] == 's') {
+			else if (format[temp_i] == 's') {
 				kprint(va_arg(list, c_str));
 
 				temp_i += 1;
 			}
 
-			if (format[temp_i] == 'c') {
+			else if (format[temp_i] == 'c') {
 				putch(va_arg(list, int));
 
 				temp_i += 1;
 			}
 
+			else if (format[temp_i] == 'v') {
+				temp_i += 1;
+
+				temp_i += parse_ext_specf(format + temp_i, def_style);
+			}
+
 			i = temp_i;
+
+			c = format + i;
 		}
 
 		c = format + i;
@@ -171,6 +276,18 @@ void kprintf(const c_str format, ...) {
 		
 		else putch(*c);
 	}
+	
+	set_style(def_style);
+}
+
+void kprintf(const c_str format, ...) {
+	va_list list;
+
+	va_start(list, format);
+	
+	char buf[128] = { 0 };
+
+	vsprintf(buf, format, list);
 
 	va_end(list);
 }
@@ -187,27 +304,67 @@ size_t get_num_digits(ssize_t num, size_t base) {
 	return MAX(result, 1);
 }
 
-bool _isupper(char c) {
-	return (c >= 'A' && c <= 'Z');
+bool isupper(byte c) {
+	return (c >= 'A') && (c <= 'Z');
 }
 
-bool _islower(char c) {
-	return (c >= 'a' && c <= 'z');
+bool islower(byte c) {
+	return (c >= 'a') && (c <= 'z');
 }
 
-bool _isalpha(char c) {
-	return _islower(c) || _isupper(c);
+bool isalpha(byte c) {
+	return islower(c) || isupper(c);
 }
 
-char upper(char c) {
-	return _islower(c) ? (c - 'a' + 'A') : c;
+bool isascii(byte c) {
+	return (c >= ' ') && (c <= 128);
 }
 
-char lower(char c) {
-	return _isupper(c) ? (c - 'A' + 'a') : c;
+bool isprintable(byte c) {
+	return (c >= ' ') && (c <= 255);
 }
 
-const char num_alphabet[] = 
+byte upper(byte c) {
+	return islower(c) ? (c - 'a' + 'A') : c;
+}
+
+byte lower(byte c) {
+	return isupper(c) ? (c - 'A' + 'a') : c;
+}
+
+static char* cur_str = nullptr; static size_t cur_str_len = 0; static size_t tok_index = 0;
+
+char* strtok(char* _str, const char* delim) {
+	size_t delim_len = strlen(delim);
+
+	if (_str) {
+		cur_str = _str; cur_str_len = strlen(cur_str); tok_index = 0;
+	}
+
+	char* str = cur_str;
+
+	if (!str || cur_str_len <= 1) return nullptr;
+
+	if (tok_index >= cur_str_len - 1) return nullptr;
+
+	size_t old_tok_index = tok_index;
+
+	for (size_t i = tok_index; i < cur_str_len; i++) {
+		size_t min_size = MIN(delim_len, cur_str_len - i - 1);
+
+		if (strncmp(str + i, delim, min_size) == 0) {
+			memset(str + i, 0, min_size);
+
+			tok_index = i + min_size;
+
+			break;
+		}
+	}
+
+	return str + old_tok_index;
+}
+
+static const char num_alphabet[] = 
 	"0123456789"
 	"ABCDEFGHIJ"
 	"KLMNOPQRST"
@@ -216,7 +373,7 @@ const char num_alphabet[] =
 static ssize_t ch_index_in_alphabet(char c, const c_str alphabet, size_t alphabet_size) {
 	if (alphabet == nullptr || alphabet_size == 0) {
 		kprint("Check char in alphabet failure: "
-				"alphabet is nullptr or alphabet_size = 0\n\r");
+				"alphabet is nullptr or alphabet_size = 0\n");
 		
 		return -1;
 	}
@@ -301,6 +458,24 @@ uintmax_t parse_num(const c_str str, uintmax_t radix) {
 	return result;
 }
 
+void sprint_hex(char* s, byte* num, size_t size) {
+	if (!vidmem) return;
+
+	if (num == nullptr) return;
+
+	size_t w_index = 0;
+
+	for (size_t i = 0; i < size; i++) {
+		byte hi = (num[i] >> 4) & 0xF,
+			 lo = num[i] & 0xF;
+
+		s[w_index] = num_alphabet[hi]; 	w_index += 1;
+		s[w_index] = num_alphabet[lo]; 	w_index += 1;
+
+		s[w_index] = ' '; 				w_index += 1;
+	}
+}
+
 void print_hex(byte* num, size_t size) {
 	if (!vidmem) return;
 
@@ -317,53 +492,79 @@ void print_hex(byte* num, size_t size) {
 	}
 }
 
-void print_num(size_t num, size_t base) {
-	if (!vidmem) return;
-
+static size_t snprint_unum(char* s, ssize_t size, size_t num, size_t base) {
 	if (base <= 0 || base >= strlen(num_alphabet)) {
-		kprint("Base should be in range 2...");
+		kprint("Base not in range 2...37\n");
 
-		print_num(strlen(num_alphabet) - 1, 10);
-
-		kprint(", not ");
-
-		print_num(base, 10);
-
-		kprint("\n\r");
-
-		return;
+		return 0;
 	}
 
-	if (num < 0) putch('-');
-
-	num = ABS(num);
+	size_t w_index = 0;
 
 	if (num < base) {
-		putch(num_alphabet[num]);
+		s[w_index] = num_alphabet[num]; w_index++;
 
-		return;
+		return w_index;
 	}
 
-	char buf[32] = { 0 };
-
-	size_t buf_size = sizeof(buf) / sizeof(buf[0]);
-
-	size_t index = MIN(buf_size - 1, get_num_digits(num, base));
+	size_t index = get_num_digits(num, base);
 
 	while (num >= base && index > 0) {
-		buf[index] = num_alphabet[num % base];
+		s[index + w_index] = num_alphabet[num % base];
 
 		num /= base;
 
 		index -= 1;
 	}
 	
-	buf[index] = num_alphabet[num % base];
+	s[index + w_index] = num_alphabet[num % base];
+
+	return index + w_index;
+}
+
+size_t snprint_num(char* s, ssize_t size, size_t num, size_t base, bool num_signed, bool always_show_sign) {
+	if (base <= 0 || base >= strlen(num_alphabet)) {
+		return 0;
+	}
+
+	if (num_signed) {
+		size_t mask = 1ULL << ((sizeof(num) * 8ULL) - 1ULL);
+
+		bool sign = num & mask;
+		
+		if (sign) {
+			s[0] = '-';
+
+			s += 1; size -= 1;
+		}
+
+		else if (always_show_sign) {
+			s[0] = '+';
+
+			s += 1; size -= 1;
+		}
+		
+		num = (~num) + 1; // Converting to positive number to negative, and vice versa
+	}
+
+	return snprint_unum(s, size, num, base);
+}
+
+void print_num(size_t num, size_t base, bool num_signed) {
+	if (!vidmem) return;
+
+	if (base <= 0 || base >= strlen(num_alphabet)) {
+		return;
+	}
+
+	char buf[64] = { 0 };
+
+	snprint_num(buf, 64, num, base, num_signed, false);
 
 	kprint(buf);
 }
 
-void nblk__set_cursor_pos(ssize_t x, ssize_t y) {
+void set_cursor_pos(ssize_t x, ssize_t y) {
 	cur_x = x; cur_y = y;
 
 	crt_set_cursor_pos(cur_x, cur_y);

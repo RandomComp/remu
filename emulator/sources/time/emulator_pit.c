@@ -6,13 +6,15 @@
 
 #include "emulator_logger.h"
 
+#include "utils.h"
+
 #include <malloc.h>
 
 #include <string.h>
 
 static pit_t* cur = nullptr;
 
-static void gen_tick(void) {
+static void gen_tick(int UNUSED _) {
 	if (cur && cur->pic)
 		call_emulator_int(cur->pic, PIT_INT);
 }
@@ -45,7 +47,7 @@ pit_t* init_pit(pic_t* pic) {
 	pit->divisor = 0;
 
 	cur = pit;
-
+	
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "PIT initialized!");
 
 	return pit;
@@ -53,6 +55,8 @@ pit_t* init_pit(pic_t* pic) {
 
 void free_pit(pit_t* pit) {
 	if (pit) {
+		timer_delete(pit->timer);
+
 		if (cur == pit) cur = nullptr;
 
 		free(pit); pit = nullptr;

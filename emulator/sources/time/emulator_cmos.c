@@ -214,13 +214,11 @@ cmos_t* init_cmos() {
 
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x70, 0x71) for CMOS...");
 
-	emulator_setup_port_out(0x70, &cmos_reg);
+	emulator_setup_port_out(0x70, cmos_reg);
+	emulator_setup_port_in(0x70, cmos_get_reg);
 
-	emulator_setup_port_in(0x70, &cmos_get_reg);
-
-	emulator_setup_port_out(0x71, &cmos_write);
-
-	emulator_setup_port_in(0x71, &cmos_read);
+	emulator_setup_port_out(0x71, cmos_write);
+	emulator_setup_port_in(0x71, cmos_read);
 
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "CMOS initialized");
 

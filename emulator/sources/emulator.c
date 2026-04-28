@@ -126,13 +126,7 @@ void emulator_update_timer(tick_timer_t* tick_timer, uint64 cur_ticks) {
 	size_t repeated_cnt = 0;
 
 	if (dur >= tick_timer->ms) {
-		uint64 i = dur;
-
-		do {
-			tick_timer->handler();
-
-			i -= tick_timer->ms;
-		} while (i > tick_timer->ms);
+		tick_timer->handler();
 					
 		tick_timer->last_time = cur_ticks;
 	}
@@ -221,7 +215,7 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 		
 		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture initialization (for drawing)...");
 
-		emulator->screen_width = 80 * VGA_CHAR_WIDTH;
+		emulator->screen_width =  80 * VGA_CHAR_WIDTH;
 
 		emulator->screen_height = 25 * VGA_CHAR_HEIGHT;
 
@@ -338,7 +332,7 @@ void init_emulator_multiboot(emulator_t* _emulator, multiboot_info_t* multiboot_
 	multiboot_info->flags = 0b0001000000111;
 
 	if (emulator->ram) {
-		multiboot_info->mem_lower = MIN(640, emulator->ram->mem_size);
+		multiboot_info->mem_lower = MIN(640, emulator->ram->mem_size / 1024);
 
 		multiboot_info->mem_upper = (emulator->ram->mem_size - 0x100000) / 1024;
 
@@ -370,6 +364,12 @@ struct kmain_start_args_t {
 	multiboot_info_t* multiboot;
 };
 
+static void exec_ints_timer_handler(int UNUSED sig) {
+	if (!cur || !cur->cpu || !cur->cpu->pic) return;
+
+	exec_all_emulator_ints(cur->cpu->pic);
+}
+
 static void* kmain_start(void* args) {
 	if (!cur) return nullptr;
 
@@ -383,8 +383,16 @@ static void* kmain_start(void* args) {
 
 	free(start_args);
 
+	init_timer(&cur->kmain_ints_exec_timer, cur->cpu->halted_frametime_ns / 2, exec_ints_timer_handler);
+
 	if (kmain)
 		kmain(magic, multiboot);
+	
+	timer_delete(cur->kmain_ints_exec_timer); cur->kmain_ints_exec_timer = 0;
+
+	cur->running = false;
+
+	cur->kmain_started = false;
 	
 	return nullptr;
 }
@@ -449,6 +457,11 @@ void free_emulator(emulator_t* _emulator) {
 	emulator->is_hardware_reseting = true;
 
 	emulator_forced_update_all_timers(emulator);
+
+	if (cur->kmain_ints_exec_timer > 0)
+		timer_delete(cur->kmain_ints_exec_timer);
+		 
+	cur->kmain_ints_exec_timer = 0;
 	
 	if (emulator->pit) {
 		free_pit(emulator->pit); emulator->pit = nullptr;

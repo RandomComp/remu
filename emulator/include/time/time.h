@@ -110,7 +110,7 @@ static inline struct_time_t struct_time_from_unix_time(_time_t time) {
 
 	result.hour = hour_from_unix_time(time);
 
-	result.day_of_month = day_from_unix_time(time);
+	result.day_of_month = year_day_from_unix_time(time);
 
 	result.day_of_week = day_from_unix_time(time);
 

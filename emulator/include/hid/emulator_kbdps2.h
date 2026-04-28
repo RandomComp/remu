@@ -6,7 +6,7 @@
 #define INPUT_BUFFER_MAX_SIZE 128
 
 typedef struct kbdps2_t {
-	byte pressed_key[4];
+	byte pressed_key[16];
 } kbdps2_t;
 
 // " ", "☺", "☻", "♥", "♦", "♣", 
@@ -145,8 +145,15 @@ typedef enum scancode_e {
 	SCANCODE_NONE2,
 	SCANCODE_F11,
 	SCANCODE_F12,
-	SCANCODE_CONTROL_SEQUENCE = 0xE0
+	SCANCODE_EXTENDED = 0xE0
 } scancode_e;
+
+typedef enum ext_scancode_e {
+	EXT_SCANCODE_ARROW_UP = 72, 
+	EXT_SCANCODE_ARROW_LEFT = 75,
+	EXT_SCANCODE_ARROW_RIGHT = 77,
+	EXT_SCANCODE_ARROW_DOWN = 80,
+} ext_scancode_e;
 
 void handle_key_gui(byte sdl_scancode, bool is_key_released);
 

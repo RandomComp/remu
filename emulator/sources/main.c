@@ -150,15 +150,7 @@ typedef struct __init_kernel_args_t {
 	uint64 (*__emulator_start_tsc)(void);
 
 	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
-
-	void (*__emulator_exec_all_ints)();
 } __init_kernel_args_t;
-
-void exec_all_ints_in_queue() {
-	if (!emulator || !emulator->cpu || !emulator->cpu->pic) return;
-
-	exec_all_emulator_ints(emulator->cpu->pic);
-}
 
 static void* emulator_get_ram() {
 	if (!emulator) {
@@ -175,8 +167,6 @@ static bool cpu_need_to_halt = false;
 static uint64 itval_ns = 0;
 
 void wait_halt() {
-	exec_all_ints_in_queue();
-	
 	usleep(itval_ns / 1000);
 
 	cpu_need_to_halt = true;
@@ -247,7 +237,7 @@ int main(int argc, const char** argv) {
 	orig_termios = switch_to_raw();
 	#endif
 
-	change_title("OS Emulator (Ctrl+C to exit)");
+	change_title("OS Emulator (non-gui mode) (Ctrl+C to exit)");
 
 	#ifdef IS_UNIX
 	int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
@@ -266,10 +256,10 @@ int main(int argc, const char** argv) {
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Kernel \"%s\" loading...", so_name);
 
-	void* os_handle = dlopen(so_name, RTLD_LAZY);
+	void* os_handle = dlopen(so_name, RTLD_NOW);
 
 	if (!os_handle) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "dlopen error. Did you forgot to compile kernel?");
+		emulator_log(true, LOG_SEVERITY_ERROR, "dlopen error: %s. Did you forgot to compile kernel?", dlerror());
 
 		return 1;
 	}
@@ -324,7 +314,6 @@ int main(int argc, const char** argv) {
 	kernel_args.__emulator_wait_halt = wait_halt;
 	kernel_args.__emulator_start_tsc = start_tsc;
 	kernel_args.__emulator_idt_flush = idt_flush_emulator;
-	kernel_args.__emulator_exec_all_ints = exec_all_ints_in_queue;
 
 	__emulator_init_kernel(kernel_args);
 
@@ -364,6 +353,8 @@ int main(int argc, const char** argv) {
 	
 	SDL_Event event;
 
+	int win_x = 0, win_y = 0;
+
 	while (emulator && emulator->running) {
 		while (SDL_PollEvent(&event)) {
 			if (event.type == SDL_QUIT) {
@@ -373,11 +364,50 @@ int main(int argc, const char** argv) {
 			}
 
 			if (event.type == SDL_KEYDOWN) {
-				handle_key_gui(event.key.keysym.scancode, false);
+				bool is_ctrl = (event.key.keysym.mod & KMOD_CTRL) || (event.key.keysym.mod & KMOD_GUI);
+				bool is_shift = (event.key.keysym.mod & KMOD_SHIFT);
+
+				if (is_ctrl && is_shift) {
+					switch (event.key.keysym.sym) {
+						case SDLK_c:
+							handle_copy_selected();
+							break;
+						case SDLK_v:
+							handle_paste_selected();
+							break;
+						
+						default:
+							break;
+					}
+				}
+
+				else handle_key_gui(event.key.keysym.scancode, false);
 			}
 
 			else if (event.type == SDL_KEYUP) {
 				handle_key_gui(event.key.keysym.scancode, true);
+			}
+
+			else if (event.type == SDL_MOUSEBUTTONDOWN) {
+				if (event.button.button == 1) {
+					SDL_GetWindowSize(emulator->window, &win_x, &win_y);
+
+					handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, false);
+				}
+			}
+
+			else if (event.type == SDL_MOUSEBUTTONUP) {
+				if (event.button.button == 1) {
+					SDL_GetWindowSize(emulator->window, &win_x, &win_y);
+
+					handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, true);
+				}
+			}
+
+			else if (event.type == SDL_MOUSEMOTION) {
+				SDL_GetWindowSize(emulator->window, &win_x, &win_y);
+
+				handle_mouse_move(event.motion.x, event.motion.y, win_x, win_y);
 			}
 		}
 
@@ -393,13 +423,19 @@ int main(int argc, const char** argv) {
 
 		SDL_RenderPresent(emulator->renderer);
 
-		if (!emulator->cpu->halted && cpu_need_to_halt) {
+		if (!(emulator->cpu->halted) && cpu_need_to_halt) {
 			set_halt(emulator->cpu);
 		}
 			
 		itval_ns = cpu_get_itval_ns(emulator->cpu);
 
-		usleep(cpu_get_itval_ns(emulator->cpu) / 1000);
+		struct timespec spec = { 0 };
+
+		spec.tv_nsec = cpu_get_itval_ns(emulator->cpu);
+
+		nanosleep(&spec, nullptr);
+
+		// SDL_Delay(itval_ns / 1000000);
 	}
 	#else
 	emulator_setup_tick_timer(emulator, handle_keys_cli, 10);
@@ -408,7 +444,11 @@ int main(int argc, const char** argv) {
 		if (!emulator->is_hardware_reseting)
 			emulator_update_all(emulator);
 
-		usleep(cpu_get_itval_ns(emulator->cpu) / 1000);
+		struct timespec spec = { 0 };
+
+		spec.tv_nsec = cpu_get_itval_ns(emulator->cpu);
+
+		nanosleep(&spec, nullptr);
 	}
 	#endif
 	

@@ -23,7 +23,9 @@ void poweroff(void) {
 
 	out16(0x600, 0x34); // for cloud hypervisor
 
-	for (;;);
+	asm volatile("cli");
+
+	for (;;) halt();
 }
 
 void reboot(void) {
@@ -34,5 +36,7 @@ void reboot(void) {
 
 	out8(0x64, 0xFE);
 
-	for (;;);
+	asm volatile("cli");
+
+	for (;;) halt();
 }

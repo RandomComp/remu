@@ -3,10 +3,8 @@
 
 #include "types.h"
 
-typedef void (*isr_handler_t)(void);
-
 typedef struct PACKED idt_entry_t {
-	#ifdef FREE_STANDING_MODE
+	#ifndef __EMULATOR__
 	uint16 base_low;
 	#else
 	uint32 base_low;
@@ -18,7 +16,7 @@ typedef struct PACKED idt_entry_t {
 
 	uint8 flags;
 
-	#ifdef FREE_STANDING_MODE
+	#ifndef __EMULATOR__
 	uint16 base_high;
 	#else
 	uint32 base_high;
@@ -28,7 +26,7 @@ typedef struct PACKED idt_entry_t {
 typedef struct PACKED idt_ptr_t {
 	uint16 limit;
 
-	#ifdef FREE_STANDING_MODE
+	#ifndef __EMULATOR__
 	uint32 base;
 	#else
 	uint64 base;
@@ -47,11 +45,11 @@ typedef struct registers_t {
 	uint32 eip, csm, eflags, useresp, ss;
 } registers_t;
 
-typedef void (*idt_irq_handler_t)(registers_t* regs);
+typedef void (*isr_handler_t)(registers_t* regs);
 
 void idt_init(void);
 
-#ifdef FREE_STANDING_MODE
+#ifndef __EMULATOR__
 void IDTSetGate(uint8 num, uint32 base, uint16 sel, uint8 flags);
 #else
 void IDTSetGate(uint8 num, uint64 base, uint16 sel, uint8 flags);
@@ -65,7 +63,7 @@ void IDTIRQUninstallHandler(int32 irq);
 
 void IDTIRQHandler(struct registers_t* regs);
 
-#ifdef FREE_STANDING_MODE
+#ifndef __EMULATOR__
 extern void isr0(void);
 extern void isr1(void);
 extern void isr2(void);
@@ -152,7 +150,6 @@ void isr28(void);
 void isr29(void);
 void isr30(void);
 void isr31(void);
-void isr17(void);
 
 void irq0(void);
 void irq1(void);

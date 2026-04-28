@@ -72,6 +72,7 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 	va_copy(args2, args);
 
 	const c_str severities_name[] = {
+		[LOG_SEVERITY_TRACE] 	=	"TRCE",
 		[LOG_SEVERITY_VERBOSE] 	=	"VERB",
 		[LOG_SEVERITY_INFO] 	=	"INFO",
 		[LOG_SEVERITY_WARNING] 	= 	"WARN",
@@ -79,6 +80,7 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 	};
 
 	const c_str severities_color[] = {
+		[LOG_SEVERITY_TRACE] 	=	white_fg,
 		[LOG_SEVERITY_VERBOSE] 	=	white_fg,
 		[LOG_SEVERITY_INFO] 	= 	bold white_fg,
 		[LOG_SEVERITY_WARNING] 	= 	bold bright_yellow_fg,
@@ -158,9 +160,7 @@ void free_emulator_logger(logger_t* logger) {
 
 	emulator = nullptr;
 
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "Logger deinitializing...");
-
-	printf("\n\r");
+	printf("\n\rLogger deinitializing...\n\r");
 
 	printf("Logger msg deinitializing...\n\r");
 

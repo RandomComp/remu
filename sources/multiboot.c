@@ -48,12 +48,12 @@ void display_multiboot(void* ram, uint32 magic, multiboot_info_t* multiboot) {
 	}
 
 	if (is_drivers_available) {
-		kprint("multiboot->drives_length = 0x"); print_num(multiboot->drives_length, 16); kprint("\n\r");
-		kprint("multiboot->drives_addr = 0x"); print_num(multiboot->drives_addr, 16); kprint("\n\r");
+		kprint("multiboot->drives_length = 0x"); print_num(multiboot->drives_length, 16, false); kprint("\n\r");
+		kprint("multiboot->drives_addr = 0x"); print_num(multiboot->drives_addr, 16, false); kprint("\n\r");
 	}
 
 	if (is_config_table_available) {
-		kprint("multiboot->config_table = "); print_num(multiboot->config_table, 10); kprint("\n\r");
+		kprint("multiboot->config_table = "); print_num(multiboot->config_table, 10, false); kprint("\n\r");
 	}
 
 	if (is_bootloader_name_available) {
@@ -61,24 +61,24 @@ void display_multiboot(void* ram, uint32 magic, multiboot_info_t* multiboot) {
 	}
 
 	if (is_apm_available) {
-		kprint("multiboot->apm_table = "); print_num(multiboot->apm_table, 10); kprint("\n\r");
+		kprint("multiboot->apm_table = "); print_num(multiboot->apm_table, 10, false); kprint("\n\r");
 	}
 
 	if  (is_vbe_available) {
-		kprint("multiboot->vbe_control_info = "); print_num(multiboot->vbe_control_info, 10); kprint("\n\r");
-		kprint("multiboot->vbe_mode_info = "); print_num(multiboot->vbe_mode_info, 10); kprint("\n\r");
-		kprint("multiboot->vbe_mode = "); print_num(multiboot->vbe_mode, 10); kprint("\n\r");
-		kprint("multiboot->vbe_interface_seg = "); print_num(multiboot->vbe_interface_seg, 10); kprint("\n\r");
-		kprint("multiboot->vbe_interface_off = "); print_num(multiboot->vbe_interface_off, 10); kprint("\n\r");
-		kprint("multiboot->vbe_interface_len = "); print_num(multiboot->vbe_interface_len, 10); kprint("\n\r");
+		kprint("multiboot->vbe_control_info = "); print_num(multiboot->vbe_control_info, 10, false); kprint("\n\r");
+		kprint("multiboot->vbe_mode_info = "); print_num(multiboot->vbe_mode_info, 10, false); kprint("\n\r");
+		kprint("multiboot->vbe_mode = "); print_num(multiboot->vbe_mode, 10, false); kprint("\n\r");
+		kprint("multiboot->vbe_interface_seg = "); print_num(multiboot->vbe_interface_seg, 10, false); kprint("\n\r");
+		kprint("multiboot->vbe_interface_off = "); print_num(multiboot->vbe_interface_off, 10, false); kprint("\n\r");
+		kprint("multiboot->vbe_interface_len = "); print_num(multiboot->vbe_interface_len, 10, false); kprint("\n\r");
 	}
 
 	if (is_fb_available) {
 		kprintf("multiboot->fb_addr = %x\n\r", multiboot->fb_addr);
-		kprint("multiboot->fb_pitch = "); print_num(multiboot->fb_pitch, 10); kprint("\n\r");
-		kprint("multiboot->fb_size = "); print_num(multiboot->fb_width, 10); putch('x');
-		print_num(multiboot->fb_height, 10); putch('x'); 
-		print_num(multiboot->fb_bpp, 10); kprint("\n\r");
-		kprint("multiboot->fb_type = "); print_num(multiboot->fb_type, 10); kprint("\n\r");
+		kprint("multiboot->fb_pitch = "); print_num(multiboot->fb_pitch, 10, false); kprint("\n\r");
+		kprint("multiboot->fb_size = "); print_num(multiboot->fb_width, 10, false); putch('x');
+		print_num(multiboot->fb_height, 10, false); putch('x'); 
+		print_num(multiboot->fb_bpp, 10, false); kprint("\n\r");
+		kprint("multiboot->fb_type = "); print_num(multiboot->fb_type, 10, false); kprint("\n\r");
 	}
 }

@@ -3,7 +3,11 @@
 
 #include "types.h"
 
+#include "multiboot.h"
+
 void* get_ram();
+
+size_t get_ram_size(multiboot_info_t* multiboot);
 
 uint8 in8(uint16 port);
 

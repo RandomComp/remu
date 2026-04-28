@@ -27,13 +27,13 @@ bool cmos_update_in_progress() {
 }
 
 void show_rtc_time() {
-	byte reg_b = cmos_read_reg(0xB);
+	byte reg_b = cmos_read_reg(0x0B);
 
-	byte second = read_rtc_seconds();
+	byte second = cmos_read_reg(0x00);
 
-	byte minute = cmos_read_reg(2);
+	byte minute = cmos_read_reg(0x02);
 
-	byte hour = cmos_read_reg(4);
+	byte hour = cmos_read_reg(0x04);
 
 	bool pm = false;
 
@@ -51,17 +51,33 @@ void show_rtc_time() {
 		hour = from_bcd(hour);
 	}
 
-	print_num(hour, 10); putch(':');
-
-	print_num(minute, 10); putch(':');
-
-	print_num(second, 10);
+	kprintf("%i:%i:%i", hour, minute, second);
 
 	if ((reg_b & CMOS_REGISTER_B_IS_24_FORMAT) == 0) {
 		if (pm) kprint(" PM");
 
 		else kprint(" AM");
 	}
+}
+
+void show_rtc_date() {
+	byte reg_b = cmos_read_reg(0x0B);
+
+	byte day = cmos_read_reg(CMOS_RTC_DAY_OF_MONTH);
+
+	byte month = cmos_read_reg(CMOS_RTC_MONTHS);
+
+	byte year = cmos_read_reg(CMOS_RTC_YEARS);
+
+	if ((reg_b & CMOS_REGISTER_B_IS_BINARY_MODE) == 0) {
+		day = from_bcd(day);
+
+		month = from_bcd(month);
+
+		year = from_bcd(year);
+	}
+
+	kprintf("%i.%i.%i", (int)day, (int)month, (int)(year + 2000));
 }
 
 byte read_rtc_seconds() {

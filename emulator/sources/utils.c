@@ -101,7 +101,7 @@ void init_timer(timer_t* timer, time_t ns, void (*handler)(int)) {
 
 	sev.sigev_notify = SIGEV_SIGNAL;
 	sev.sigev_signo = SIGRTMIN;
-	sev.sigev_value.sival_ptr = timer;
+	sev.sigev_value.sival_ptr = nullptr;
 
 	timer_create(CLOCK_REALTIME, &sev, timer);
 

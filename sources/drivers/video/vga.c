@@ -3,7 +3,7 @@
 #include "drivers/memory/memory.h"
 
 void crt_set_cursor_pos(size_t x, size_t y) {
-	size_t cursor_pos = (y * columns) + x;
+	size_t cursor_pos = (y * COLUMNS) + x;
 
 	out8(0x3D4, 0xE);
 

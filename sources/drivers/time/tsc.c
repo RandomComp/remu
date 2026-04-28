@@ -6,7 +6,7 @@
 
 #include "std.h"
 
-#ifndef FREE_STANDING_MODE
+#ifdef __EMULATOR__
 #include "kernel.h"
 
 extern __init_kernel_args_t kernel_args;
@@ -19,7 +19,7 @@ uint64 read_tsc() {
 
 	uint64 result = ((uint64)hi << 32) | ((uint64)lo);
 
-	#ifndef FREE_STANDING_MODE
+	#ifdef __EMULATOR__
 	if (kernel_args.__emulator_start_tsc)
 		result -= kernel_args.__emulator_start_tsc();
 	#endif

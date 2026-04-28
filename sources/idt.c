@@ -12,7 +12,7 @@
 
 #include "builtins/builtins.h"
 
-#ifdef FREE_STANDING_MODE
+#ifndef __EMULATOR__
 extern void IDTFlush(uint32);
 #else
 #include "kernel.h"
@@ -36,225 +36,241 @@ void print_something(void) {
 	kprintf("Ok...\n");
 }
 
-#ifndef FREE_STANDING_MODE
+#ifdef __EMULATOR__
+// def idt_routine_call(is_isr, _int):
+// 	if not is_isr:
+// 		_int -= 0x20
+// 	print("\nvoid " + ("isr" if is_isr else "irq") + str(_int) + "(void) {")
+// 	if not is_isr:
+// 		print("""\tisr_handler_t handler = (isr_handler_t)IDTIRQRoutines[""" + str(_int) + """];
+// \tif (handler) handler();""")
+// 	else:
+// 		print("\tcall_isr_handler(" + str(_int) + ");")
+// 	print("}")
+
+void call_isr_handler(byte isr_int) {
+	kprintf("\nError %i\n", isr_int);
+
+	for (;;) halt();
+}
+
 void isr0(void) {
-	// kprintf("isr123232\n");
+	call_isr_handler(0);
 }
 
 void isr1(void) {
-	kprintf("isr1\n");
+	call_isr_handler(1);
 }
 
 void isr2(void) {
-	kprintf("isr2\n");
+	call_isr_handler(2);
 }
 
 void isr3(void) {
-	kprintf("isr3\n");
+	call_isr_handler(3);
 }
 
 void isr4(void) {
-	kprintf("isr4\n");
+	call_isr_handler(4);
 }
 
 void isr5(void) {
-	kprintf("isr5\n");
+	call_isr_handler(5);
 }
 
 void isr6(void) {
-	kprintf("isr6\n");
+	call_isr_handler(6);
 }
 
 void isr7(void) {
-	kprintf("isr7\n");
+	call_isr_handler(7);
 }
 
 void isr8(void) {
-	kprintf("isr8\n");
+	call_isr_handler(8);
 }
 
 void isr9(void) {
-	kprintf("isr9\n");
+	call_isr_handler(9);
 }
 
 void isr10(void) {
-	kprintf("isr10\n");
+	call_isr_handler(10);
 }
 
 void isr11(void) {
-	kprintf("isr11\n");
+	call_isr_handler(11);
 }
 
 void isr12(void) {
-	kprintf("isr12\n");
+	call_isr_handler(12);
 }
 
 void isr13(void) {
-	kprintf("isr13\n");
+	call_isr_handler(13);
 }
 
 void isr14(void) {
-	kprintf("isr14\n");
+	call_isr_handler(14);
 }
 
 void isr15(void) {
-	kprintf("isr15\n");
+	call_isr_handler(15);
 }
 
 void isr16(void) {
-	kprintf("isr16\n");
+	call_isr_handler(16);
 }
 
 void isr17(void) {
-	kprintf("isr17\n");
+	call_isr_handler(17);
 }
 
 void isr18(void) {
-	kprintf("isr18\n");
+	call_isr_handler(18);
 }
 
 void isr19(void) {
-	kprintf("isr19\n");
+	call_isr_handler(19);
 }
 
 void isr20(void) {
-	kprintf("isr20\n");
+	call_isr_handler(20);
 }
 
 void isr21(void) {
-	kprintf("isr21\n");
+	call_isr_handler(21);
 }
 
 void isr22(void) {
-	kprintf("isr22\n");
+	call_isr_handler(22);
 }
 
 void isr23(void) {
-	kprintf("isr23\n");
+	call_isr_handler(23);
 }
 
 void isr24(void) {
-	kprintf("isr24\n");
+	call_isr_handler(24);
 }
 
 void isr25(void) {
-	kprintf("isr25\n");
+	call_isr_handler(25);
 }
 
 void isr26(void) {
-	kprintf("isr16\n");
+	call_isr_handler(26);
 }
 
 void isr27(void) {
-	kprintf("isr27\n");
+	call_isr_handler(27);
 }
 
 void isr28(void) {
-	kprintf("isr28\n");
+	call_isr_handler(28);
 }
 
 void isr29(void) {
-	kprintf("isr29\n");
+	call_isr_handler(29);
 }
 
 void isr30(void) {
-	kprintf("isr30\n");
+	call_isr_handler(30);
 }
 
 void isr31(void) {
-	kprintf("isr31\n");
+	call_isr_handler(31);
 }
-
-static uint64 pit_time = 0;
-
-void irq0(void) {
-	// void (*handler)(void);
-
-	// handler = IDTIRQRoutines[0];
-
-	// if (handler)
-	// 	handler();
-
-	// kprintf("\rPIT interrupt! time: %l", pit_time);
-
-	pit_time += 18;
-}
-
-void irq1(void) {
-	void (*handler)(void);
-
-	handler = IDTIRQRoutines[1];
-
-	if (handler)
-		handler();
-		
-	kprintf("Keyboard interrupt!\n");
-}
-
-void irq2(void) {
-	kprintf("irq2\n");
-}
-
-void irq3(void) {
-	kprintf("irq3\n");
-}
-
-void irq4(void) {
-	kprintf("isr4\n");
-}
-
-void irq5(void) {
-	kprintf("isr5\n");
-}
-
-void irq6(void) {
-	kprintf("irq6\n");
-}
-
-void irq7(void) {
-	kprintf("irq7\n");
-}
-
-void irq8(void) {
-	kprintf("irq8\n");
-}
-
-void irq9(void) {
-	kprintf("irq9\n");
-}
-
-void irq10(void) {
-	kprintf("irq10\n");
-}
-
-void irq11(void) {
-	kprintf("irq11\n");
-}
-
-void irq12(void) {
-	kprintf("isr12\n");
-}
-
-void irq13(void) {
-	kprintf("isr13\n");
-}
-
-void irq14(void) {
-	kprintf("isr14\n");
-}
-
-void irq15(void) {
-	kprintf("irq15\n");
-}
-
 
 void isr128(void) {
-	kprintf("isr128\n");
+	call_isr_handler(128);
 }
 
 void isr177(void) {
-	kprintf("isr177\n");
+	call_isr_handler(177);
 }
+
+// TODO: передавать в handler реальный struct registers_t* а не пустое значение
+void irq0(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[0];
+	if (handler) handler(nullptr);
+}
+
+void irq1(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[1];
+	if (handler) handler(nullptr);
+}
+
+void irq2(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[2];
+	if (handler) handler(nullptr);
+}
+
+void irq3(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[3];
+	if (handler) handler(nullptr);
+}
+
+void irq4(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[4];
+	if (handler) handler(nullptr);
+}
+
+void irq5(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[5];
+	if (handler) handler(nullptr);
+}
+
+void irq6(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[6];
+	if (handler) handler(nullptr);
+}
+
+void irq7(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[7];
+	if (handler) handler(nullptr);
+}
+
+void irq8(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[8];
+	if (handler) handler(nullptr);
+}
+
+void irq9(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[9];
+	if (handler) handler(nullptr);
+}
+
+void irq10(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[10];
+	if (handler) handler(nullptr);
+}
+
+void irq11(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[11];
+	if (handler) handler(nullptr);
+}
+
+void irq12(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[12];
+	if (handler) handler(nullptr);
+}
+
+void irq13(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[13];
+	if (handler) handler(nullptr);
+}
+
+void irq14(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[14];
+	if (handler) handler(nullptr);
+}
+
+void irq15(void) {
+	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[15];
+	if (handler) handler(nullptr);
+}
+
 #endif
 
 void idt_init(void) {
@@ -264,7 +280,7 @@ void idt_init(void) {
 
 	idtPtr.limit = sizeof(idt_entry_t) * 256 - 1;
 
-	#ifdef FREE_STANDING_MODE
+	#ifndef __EMULATOR__
 	idtPtr.base = (uint32)&idt_entries;
 	#else
 	idtPtr.base = (uint64)(idt_entries);
@@ -287,7 +303,7 @@ void idt_init(void) {
 	out8(0x21, 0x00);
 	out8(0xa1, 0x00);
 
-	isr_handler_t ints[] = {
+	void* ints[] = {
 		isr0, 	isr1,
 		isr2, 	isr3,
 		isr4, 	isr5,
@@ -316,7 +332,7 @@ void idt_init(void) {
 
 	size_t ints_cnt = sizeof(ints) / sizeof(ints[0]);
 
-	#ifdef FREE_STANDING_MODE
+	#ifndef __EMULATOR__
 	for (size_t i = 0; i < ints_cnt; i++) {
 		IDTSetGate(i, (uint32)ints[i], 0x08, 0x8e);
 	}
@@ -340,13 +356,13 @@ void idt_init(void) {
 	bIDTInitialized = true;
 }
 
-#ifdef FREE_STANDING_MODE
+#ifndef __EMULATOR__
 void IDTSetGate(uint8 num, uint32 base, uint16 sel, uint8 flags)
 #else
 void IDTSetGate(uint8 num, uint64 base, uint16 sel, uint8 flags)
 #endif
 {
-	#ifdef FREE_STANDING_MODE
+	#ifndef __EMULATOR__
 	idt_entries[num].base_low = base & 0xffff;
 
 	idt_entries[num].base_high = (base >> 16) & 0xffff;
@@ -378,12 +394,10 @@ void IDTIRQUninstallHandler(int32 irq) {
 }
 
 void IDTIRQHandler(struct registers_t* regs) {
-	void (*handler)(void);
-
-	handler = IDTIRQRoutines[regs->int_no - 32];
+	isr_handler_t handler = IDTIRQRoutines[regs->int_no - 32];
 
 	if (handler)
-		handler();
+		handler(regs);
 
 	if (regs->int_no >= 40)
 		out8(0xa0, 0x20);

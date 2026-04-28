@@ -145,7 +145,7 @@ pic_t* init_emulator_pic(cpu_t* cpu) {
 
 	pic->lock = false;
 
-	// for (_size_t i = 0; i < 15; i++) {
+	// for (_size_t i = 0; i < 32; i++) {
 	// 	idt_table[i] = reset_handler;
 	// }
 
@@ -167,9 +167,9 @@ pic_t* init_emulator_pic(cpu_t* cpu) {
 void exec_all_emulator_ints(pic_t* pic) {
 	if (!pic) return;
 
-	size_t handler_queue_size = sizeof(pic->handler_queue) / sizeof(pic->handler_queue[0]);
+	size_t queue_size = sizeof(pic->handler_queue) / sizeof(pic->handler_queue[0]);
 
-	for (size_t i = 0; i < handler_queue_size; i++) {
+	for (size_t i = 0; i < queue_size; i++) {
 		isr_handler_t handler = pic->handler_queue[i];
 
 		if (!handler) continue;
@@ -180,22 +180,28 @@ void exec_all_emulator_ints(pic_t* pic) {
 	}
 }
 
-void call_emulator_int(pic_t* pic, _size_t _int) {
+void call_emulator_int(pic_t* pic, byte _int) {
 	if (!pic) pic = cur;
 
 	_int = _int & 0xFF;
 
 	// emulator_log(false, LOG_SEVERITY_VERBOSE, "Calling interrupt 0x%zx", _int);
 
-	size_t handler_queue_size = sizeof(pic->handler_queue) / sizeof(pic->handler_queue[0]);
+	size_t queue_size = sizeof(pic->handler_queue) / sizeof(pic->handler_queue[0]);
+
+	// if (pic->handler_pos >= pic->queue_size) {
+	// 	pic->queue_size += HANDLER_QUEUE_SIZE_STEP;
+
+	// 	pic->handler_queue = realloc(pic->handler_queue, pic->queue_size * sizeof(isr_handler_t));
+ 	// }
 
 	if (idt_table[_int]) {
 		pic->handler_queue[pic->handler_pos] = idt_table[_int];
 
-		pic->handler_pos = (pic->handler_pos + 1) % handler_queue_size;
-	}
+		pic->handler_pos = (pic->handler_pos + 1) % queue_size;
 
-	clear_halt(cur_cpu);
+		if (cur_cpu) clear_halt(cur_cpu);
+	}
 }
 
 void idt_flush_emulator(idt_ptr_t* ptr) {
@@ -219,7 +225,7 @@ void idt_flush_emulator(idt_ptr_t* ptr) {
 		if (handler) {
 			idt_table[i] = handler;
 
-			emulator_log(false, LOG_SEVERITY_VERBOSE, "[KERNEL CALL] Saved handler addr 0x%x", handler);
+			emulator_log(false, LOG_SEVERITY_TRACE, "[KERNEL CALL] Saved interrupt 0x%x with handler addr 0x%zx", i, handler);
 		}
 	}
 
@@ -237,6 +243,8 @@ void free_emulator_pic(pic_t* pic) {
 
 	if (pic) {
 		// if (pic->handler_queue) free(pic->handler_queue);
+
+		// pic->handler_queue = nullptr;
 
 		pic->lock = false;
 

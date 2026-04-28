@@ -3,18 +3,6 @@
 
 #include "types.h"
 
-static ssize_t nblk__strlen(const c_str text) {
-	if (!text) return -1;
-
-	ssize_t result = 0;
-
-	while (text[result]) {
-		result++;
-	}
-
-	return result;
-}
-
 #define USE_BUILTIN_STRING
 
 static inline void* memset_slow(void* addr, int32 val, int32 len) {
@@ -153,7 +141,5 @@ static inline int32 strncmp_builtin(byte* s1, byte* s2, int32 len) {
 }
 
 #endif
-
-#define strlen(text) nblk__strlen(text)
 
 #endif

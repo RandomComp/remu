@@ -1,11 +1,11 @@
 #ifndef _EMULATOR_OS_KERNEL_H
 #define _EMULATOR_OS_KERNEL_H
 
+#ifdef __EMULATOR__
 #include "types.h"
 
 #include "idt.h"
 
-#ifndef FREE_STANDING_MODE
 typedef struct __init_kernel_args_t {
 	void* (*__emulator_get_ram)(void);
 
@@ -18,8 +18,6 @@ typedef struct __init_kernel_args_t {
 	uint64 (*__emulator_start_tsc)(void);
 
 	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
-
-	void (*__emulator_exec_all_ints)();
 } __init_kernel_args_t;
 #endif
 

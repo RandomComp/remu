@@ -2,21 +2,21 @@ CC := clang
 
 CFLAGS := -Wall
 
-EMULATOR_CFLAGS := $(CFLAGS) -g
+EMULATOR_CFLAGS := $(CFLAGS)
 
-OS_CFLAGS := -fPIC $(CFLAGS) -nostdlib -nostdinc -fno-asynchronous-unwind-tables -fno-stack-protector
+OS_CFLAGS := -fPIC $(CFLAGS) -ffreestanding -nostdlib -nostdinc -fno-inline -fvisibility=hidden -fno-plt -fno-builtin -fno-builtin-functions -fno-common -fno-asynchronous-unwind-tables -fno-stack-protector -D__EMULATOR__
 
 BAREMETAL_CFLAGS := $(CFLAGS) -m32 -ffreestanding
 
 GASFLAGS := --32
 
-BASE_CSRCFILES := $(shell find sources -name "*.c")
+OS_CSRCFILES := $(shell find sources -name "*.c")
 
-BASE_GASSRCFILES := $(shell find sources -name "*.s")
+OS_GASSRCFILES := $(shell find sources -name "*.s")
 
-BASE_OBJFILES := \
-	$(BASE_CSRCFILES:.c=.o) \
-	$(BASE_GASSRCFILES:.s=.o)
+OS_OBJFILES := \
+	$(OS_CSRCFILES:.c=.o) \
+	$(OS_GASSRCFILES:.s=.o)
 
 EMULATOR_SRCFILES := $(shell find emulator/sources -name "*.c")
 
@@ -25,8 +25,8 @@ EMULATOR_OBJFILES := $(EMULATOR_SRCFILES:.c=.o)
 EMULATOR_OBJFILES := \
 	$(addprefix obj/emulator/, $(EMULATOR_OBJFILES))
 
-OS_OBJFILES := \
-	$(addprefix obj/os_objs/, $(BASE_OBJFILES))
+EMULATOR_OS_OBJFILES := \
+	$(addprefix obj/os_objs/, $(OS_OBJFILES))
 
 BAREMETAL_NASMSRCFILES := $(shell find sources -name "*.nasm")
 
@@ -34,14 +34,16 @@ BAREMETAL_OBJFILES := $(BAREMETAL_NASMSRCFILES:.nasm=.o)
 
 BAREMETAL_OBJFILES := \
 	$(addprefix obj/baremetal/, $(BAREMETAL_OBJFILES)) \
-	$(addprefix obj/baremetal/, $(BASE_OBJFILES)) \
+	$(addprefix obj/baremetal/, $(OS_OBJFILES)) \
 	obj/baremetal/loader.o
+
+.SUFFIXES:
 
 all: emulator clean baremetal clean vmwareDisk
 
 emulator_all: emulator clean os clean emulator_run
 
-baremetal_all: baremetal vmwareDisk clean baremetalrun_
+baremetal_all: baremetal vmwareDisk clean baremetal_run
 
 baremetal: kernel.bin image
 
@@ -69,8 +71,8 @@ emulator: $(EMULATOR_OBJFILES)
 
 os_all: clean_os os clean emulator_run
 
-os: $(OS_OBJFILES)
-	@$(CC) -shared -Wl,--gc-sections -Wl,-z,norelro $^ -o $@.so
+os: $(EMULATOR_OS_OBJFILES)
+	@$(CC) -ffreestanding -nostdlib -shared -Wl,--gc-sections -Wl,-z,norelro $^ -o $@.so
 
 obj/os_objs/%.o: %.c
 	@mkdir -p $(dir $@)
@@ -112,10 +114,10 @@ clean_emulator:
 	@rm -f $(EMULATOR_OBJFILES) emulator.out
 
 clean_os:
-	@rm -f $(OS_OBJFILES) emulator_os.so
+	@rm -f $(EMULATOR_OS_OBJFILES) $(OS_OBJFILES) emulator_os.so
 
 clean:
-	@rm -f $(OS_OBJFILES) $(EMULATOR_OBJFILES) $(BAREMETAL_OBJFILES) kernel.bin
+	@rm -f $(EMULATOR_OS_OBJFILES) $(OS_OBJFILES) $(EMULATOR_OBJFILES) $(BAREMETAL_OBJFILES) kernel.bin
 
 clean_all: clean_emulator clean_os clean
 	@rm -f hdd.img Emulator_OS.vmdk

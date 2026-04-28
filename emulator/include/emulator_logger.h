@@ -10,6 +10,7 @@
 #include <bits/types/FILE.h>
 
 typedef enum log_severity_e {
+	LOG_SEVERITY_TRACE,
 	LOG_SEVERITY_VERBOSE,
 	LOG_SEVERITY_INFO,
 	LOG_SEVERITY_WARNING,

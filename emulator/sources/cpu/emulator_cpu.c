@@ -74,7 +74,7 @@ cpu_t* init_cpu(uint64 frametime_ns, uint64 halted_frametime_ns) {
 void set_halt(cpu_t* cpu) {
 	if (!cpu || cpu->halted) return;
 
-	emulator_log(false, LOG_SEVERITY_INFO, "CPU halted");
+	emulator_log(false, LOG_SEVERITY_TRACE, "CPU halted");
 	
 	cpu->halted = true;
 }
@@ -84,7 +84,7 @@ void clear_halt(cpu_t* cpu) {
 
 	cpu->halted = false;
 
-	emulator_log(false, LOG_SEVERITY_INFO, "CPU unhalted");
+	emulator_log(false, LOG_SEVERITY_TRACE, "CPU unhalted");
 }
 
 uint64 cpu_get_itval_ns(cpu_t* cpu) {

@@ -3,11 +3,11 @@
 
 #include "types.h"
 
-#define columns 80
+#define COLUMNS 80
 
-#define rows 25
+#define ROWS 25
 
-#define vidmem_size (columns * rows)
+#define vidmem_size (COLUMNS * ROWS)
 
 void crt_set_cursor_pos(size_t x, size_t y);
 

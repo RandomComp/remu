@@ -28,12 +28,18 @@
 #include <SDL2/SDL_image.h>
 #endif
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
+#define CLAMP(x, min_value, max_value) (MAX(MIN(x, max_value), min_value))
+
 const c_str cp437[] = {
 	" ", "☺", "☻", "♥", "♦", "♣", 
 	"♠", "•", "◘", "○", "◙", "♂", 
 	"♀", "♪", "♫", "☼", "►", "◄", 
 	"↕", "‼", "¶", "§", "▬", "↨", 
-	"↑", "↓", "→", "←", "∟", "↔", 
+	"↑", "↓", "→", "←", "∟", "↔",
 	"▲", "▼", " ", "!", "\"", "#", 
 	"$", "%", "&", "\'", "(", ")", 
 	"*", "+", ",", "-", ".", "/", 
@@ -394,6 +400,92 @@ void clear_vga_text_screen(vga_text_screen_t* screen) {
 	}
 }
 
+static size_t inverse_start = 0, inverse_end = 0;
+
+static bool selecting = false;
+
+void handle_copy_selected() {
+	if (!cur) return;
+
+	size_t start = MIN(inverse_start, inverse_end);
+
+	size_t end = MAX(inverse_start, inverse_end);
+	
+	size_t columns = start % cur->width;
+	
+	size_t rows = start / cur->width;
+	
+	size_t columns_end = end % cur->width;
+	
+	size_t rows_end = end / cur->width;
+
+	char buf[80 * 25] = { 0 };
+
+	size_t text_to_copy_index = 0;
+
+	for (size_t j = rows; j <= rows_end; j++) {
+		size_t index = cur->width - 1;
+
+		for (; index > columns; index--) {
+			byte b = cur->vidmem[(j * cur->width) + index] & 0xFF;
+
+			if ((b != ' ') && (b != '\0')) {
+				break;
+			}
+		}
+
+		bool is_first_j = j == rows;
+
+		bool is_last_j = j == rows_end;
+
+		for (size_t i = (is_first_j ? columns : 0); i <= (is_last_j ? columns_end : index); i++) {
+			c_str cp437_c = cp437[cur->vidmem[(j * cur->width) + i] & 0xFF];
+
+			size_t cp437_c_len = strlen(cp437_c);
+
+			memcpy(buf + text_to_copy_index, cp437_c, cp437_c_len);
+
+			text_to_copy_index += cp437_c_len;
+		}
+
+		buf[text_to_copy_index++] = '\n';
+	}
+
+	SDL_SetClipboardText(buf);
+}
+
+void handle_paste_selected() {
+	if (!cur) return;
+}
+
+void handle_mouse_move(size_t x, size_t y, int win_x, int win_y) {
+	if (!cur) return;
+
+	if (!selecting) return;
+
+	size_t cursor_x = (size_t)(x * 80) / win_x;
+
+	size_t cursor_y = (size_t)(y * 25) / win_y;
+
+	inverse_end = cursor_x + (cursor_y * cur->width);
+}
+
+void handle_mouse_button(size_t x, size_t y, int win_x, int win_y, bool released) {
+	if (!cur) return;
+
+	size_t cursor_x = (size_t)(x * 80) / win_x;
+
+	size_t cursor_y = (size_t)(y * 25) / win_y;
+
+	if (!released) {
+		inverse_start = cursor_x + (cursor_y * cur->width);
+
+		inverse_end = inverse_start;
+	}
+
+	selecting = !released;
+}
+
 int draw_vga_text(vga_text_screen_t* vga, const c_str text, byte style, _size_t column, _size_t row) {
 	if (!vga || !vga->vidmem) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw text using uninitialized vga text screen device!");
@@ -430,16 +522,13 @@ int draw_vga_ch(vga_text_screen_t* vga, byte ch, bool bg_transparent, uint32 bg_
 		return 1;
 	}
 
-	size_t vga_grid_width = vga->emulator_screen_width / VGA_CHAR_WIDTH;
-	size_t vga_grid_height = vga->emulator_screen_height / VGA_CHAR_HEIGHT;
+	size_t screen_pos = column + (row * vga->width);
 
-	size_t screen_pos = column + (row * vga_grid_width);
+	if (screen_pos >= (vga->width * vga->height)) return 1;
 
-	if (screen_pos >= (vga_grid_width * vga_grid_height)) return 1;
+	column = screen_pos % vga->width;
 
-	column = screen_pos % vga_grid_width;
-
-	row = screen_pos / vga_grid_width;
+	row = screen_pos / vga->width;
 
 	size_t font_grid_width = vga->font_width / VGA_CHAR_WIDTH;
 
@@ -493,6 +582,25 @@ const uint32 vga_color_to_rgb[] = {
 	[COLOR_BRIGHT_WHITE] = 		0xFFFFFF
 };
 
+const uint32 inversed_vga_color_to_rgb[] = {
+	[COLOR_BLACK] = 			0xFFFFFF,
+	[COLOR_BLUE] = 				0xFFFF7F,
+	[COLOR_GREEN] = 			0xFF7FFF,
+	[COLOR_AQUA] = 				0xFF7F7F,
+	[COLOR_RED] = 				0x7FFFFF,
+	[COLOR_MAGENTA] = 			0x7FFF7F,
+	[COLOR_BROWN] = 			0x55AFFF,
+	[COLOR_WHITE] = 			0x3F3F3F,
+	[COLOR_BRIGHT_BLACK] = 		0xC0C0C0,
+	[COLOR_BRIGHT_BLUE] = 		0xFFFF00,
+	[COLOR_BRIGHT_LIME] = 		0xFF00FF,
+	[COLOR_BRIGHT_AQUA] = 		0xFF0000,
+	[COLOR_BRIGHT_RED] = 		0x00FFFF,
+	[COLOR_BRIGHT_MAGENTA] = 	0x00FF00,
+	[COLOR_BRIGHT_YELLOW] = 	0x0000FF,
+	[COLOR_BRIGHT_WHITE] = 		0x000000
+};
+
 int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
 	if (!vga || !vga->vidmem) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw uninitialized vga text screen device!");
@@ -527,17 +635,32 @@ int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
 			bg_style = bg_style % 8;
 
 			if (bg_bright && !blinking_text_visible) {
-				draw_vga_ch(vga, ' ', false, 0, 0, i, 0); continue;
+				draw_vga_ch(vga, ' ', false, 0, 0, i, 0);
+				
+				continue;
 			}
 		}
+
+		uint32 fg_rgb_color = vga_color_to_rgb[fg_style];
+
+		uint32 bg_rgb_color = vga_color_to_rgb[bg_style];
+
+		if ((i >= inverse_start && i < inverse_end) ||
+			(i >= inverse_end && i < inverse_start)) {
+			fg_rgb_color = vga_color_to_rgb[15 - fg_style];
+
+			bg_rgb_color = vga_color_to_rgb[15 - bg_style];
+		}
+
+		bool transparent = false;
 
 		if (i == vga->cursor_pos && blinking_text_visible) {
 			draw_vga_ch(vga, '_', false, 0, 0xFFFFFF, i, 0);
 
-			draw_vga_ch(vga, ch, true, vga_color_to_rgb[bg_style], vga_color_to_rgb[fg_style], i, 0);
+			transparent = true;
 		}
-
-		else draw_vga_ch(vga, ch, false, vga_color_to_rgb[bg_style], vga_color_to_rgb[fg_style], i, 0);
+			
+		draw_vga_ch(vga, ch, transparent, bg_rgb_color, fg_rgb_color, i, 0);
 	}
 
 	return 0;

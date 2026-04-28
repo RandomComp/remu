@@ -65,6 +65,7 @@ byte cmos_read_reg(byte reg);
 bool cmos_update_in_progress();
 
 void show_rtc_time();
+void show_rtc_date();
 
 byte read_rtc_seconds();
 

@@ -7,12 +7,16 @@
 
 #include "types.h"
 
+#include <time.h>
+
 #define PIT_INT				0x20
 #define PIT_FREQ			1193182
 #define PIT_DEFAULT_DIVISOR 65536
 
 typedef struct pit_t {
 	pic_t* pic;
+
+	timer_t timer;
 
 	uint64 counter;
 

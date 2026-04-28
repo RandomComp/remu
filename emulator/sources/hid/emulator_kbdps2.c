@@ -21,7 +21,9 @@
 #include <ctype.h>
 
 #ifdef EMULATOR_SDL_USING
-static byte sdl_scancode_to_ps2_set1(byte _scancode) {
+static byte buf_res[2] = { 0 };
+
+static byte* sdl_scancode_to_ps2_set1(byte _scancode) {
 	const byte supported_sdl_scan[] = {
 		SDL_SCANCODE_A, SDL_SCANCODE_B, 
 		SDL_SCANCODE_C, SDL_SCANCODE_D, 
@@ -188,17 +190,41 @@ static byte sdl_scancode_to_ps2_set1(byte _scancode) {
 		// [SDL_SCANCODE_RGUI] = 231,
 	};
 
+	const byte supported_sdl_ext_scan[] = {
+		SDL_SCANCODE_UP,
+		SDL_SCANCODE_LEFT,
+		SDL_SCANCODE_RIGHT,
+		SDL_SCANCODE_DOWN,
+	};
+
+	const byte sdl_ext_scan_to_ps2_set_ext[] = {
+		[SDL_SCANCODE_UP] = 	EXT_SCANCODE_ARROW_UP,
+		[SDL_SCANCODE_LEFT] = 	EXT_SCANCODE_ARROW_LEFT,
+		[SDL_SCANCODE_RIGHT] = 	EXT_SCANCODE_ARROW_RIGHT,
+		[SDL_SCANCODE_DOWN] = 	EXT_SCANCODE_ARROW_DOWN,
+	};
+
 	const size_t supported_sdl_scan_cnt = sizeof(supported_sdl_scan) / sizeof(supported_sdl_scan[0]);
 
-	byte result = SCANCODE_NULL;
+	const size_t supported_sdl_ext_scan_cnt = sizeof(supported_sdl_ext_scan) / sizeof(supported_sdl_ext_scan[0]);
+
+	memset(buf_res, 0, sizeof(buf_res));
 
 	for (size_t i = 0; i < supported_sdl_scan_cnt; i++) {
 		if (supported_sdl_scan[i] == _scancode) {
-			result = sdl_scan_to_ps2_set1[_scancode]; break;
+			buf_res[0] = sdl_scan_to_ps2_set1[_scancode]; break;
 		}
 	}
 
-	return result;
+	for (size_t i = 0; i < supported_sdl_ext_scan_cnt; i++) {
+		if (supported_sdl_ext_scan[i] == _scancode) {
+			buf_res[0] = SCANCODE_EXTENDED;
+
+			buf_res[1] = sdl_ext_scan_to_ps2_set_ext[_scancode]; break;
+		}
+	}
+
+	return buf_res;
 }
 #endif
 
@@ -387,7 +413,9 @@ static void send_make(byte scancode) {
 
 	cur->pressed_key[writed_cnt] = scancode;
 
-	writed_cnt = (writed_cnt + 1) % 4;
+	size_t buf_size = sizeof(cur->pressed_key);
+
+	writed_cnt = (writed_cnt + 1) % buf_size;
 
 	call_emulator_int(nullptr, 0x21);
 }
@@ -418,16 +446,18 @@ void handle_key_gui(byte sdl_scancode, bool is_key_released) {
 
 	read_index = 0;
 
-	cur->pressed_key[0] = 0;
-	cur->pressed_key[1] = 0;
-	cur->pressed_key[2] = 0;
-	cur->pressed_key[3] = 0;
+	size_t buf_size = sizeof(cur->pressed_key);
 
-	byte scancode = sdl_scancode_to_ps2_set1(sdl_scancode);
+	memset(cur->pressed_key, 0, buf_size);
 
-	if (is_key_released) scancode |= 0x80;
+	byte* scancode = sdl_scancode_to_ps2_set1(sdl_scancode);
 
-	send_make(scancode);
+	for (size_t i = 0; scancode[i] && i < 2; i++) {
+		if (is_key_released)
+			scancode[i] |= 0x80;
+
+		send_make(scancode[i]);
+	}
 
 	available = true;
 }
@@ -456,10 +486,9 @@ void handle_keys_cli() {
 
 	read_index = 0;
 
-	cur->pressed_key[0] = 0;
-	cur->pressed_key[1] = 0;
-	cur->pressed_key[2] = 0;
-	cur->pressed_key[3] = 0;
+	size_t buf_size = sizeof(cur->pressed_key);
+
+	memset(cur->pressed_key, 0, buf_size);
 
 	bool is_shifted = isshifted(c);
 
@@ -512,7 +541,9 @@ kbdps2_t* init_kbdps2(bool gui) {
 
 	memset(kbdps2, 0, sizeof(kbdps2_t));
 
-	memset(kbdps2->pressed_key, 0, 4);
+	size_t buf_size = sizeof(kbdps2->pressed_key);
+
+	memset(kbdps2->pressed_key, 0, buf_size);
 	
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x60, 0x64) for PS/2 Keyboard...");
 
@@ -546,7 +577,9 @@ void reset_kbdps2(kbdps2_t* kbdps2) {
 
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "PS/2 Keyboard reseting...");
 
-	memset(kbdps2->pressed_key, 0, 4);
+	size_t buf_size = sizeof(kbdps2->pressed_key);
+
+	memset(kbdps2->pressed_key, 0, buf_size);
 
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "PS/2 Keyboard reseting done!");
 }

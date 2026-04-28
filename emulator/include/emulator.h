@@ -37,11 +37,11 @@ typedef struct tick_timer_t {
 
 #define FRAMETIME_NS (1000 * 1000 * 20)
 
-#define HALTED_FRAMETIME_NS (1000 * 1000 * 100)
+#define HALTED_FRAMETIME_NS (1000 * 1000 * 20)
 
 #define TICK_TIMERS_SIZE_STEP (4)
 
-#define EMULATOR_VERSION_STR "beta 0.3.0"
+#define EMULATOR_VERSION_STR "0.3.1"
 
 #define EMULATOR_VERSION_FULL_STR EMULATOR_VERSION_STR " (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " %i.%i " PLATFORM_ARCH
 
@@ -84,7 +84,7 @@ struct emulator_t {
 
 	multiboot_info_t* multiboot_info;
 
-	pthread_t kmain_thread; bool kmain_started;
+	pthread_t kmain_thread; bool kmain_started; timer_t kmain_ints_exec_timer;
 
 	bool cleaned;
 

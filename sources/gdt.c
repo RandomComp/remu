@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#ifdef FREE_STANDING_MODE
+#ifndef __EMULATOR__
 extern void GDTFlush(uint32);
 #endif
 
@@ -13,7 +13,7 @@ static struct gdt_ptr_struct gdt_ptr;
 static bool bGDTInitialized = false;
 
 void gdt_init(void) {
-	#ifndef FREE_STANDING_MODE
+	#ifdef __EMULATOR__
 	return;
 	#endif
 
@@ -29,7 +29,7 @@ void gdt_init(void) {
 	GDTSetGate(3, 0, 0xffffffff, 0xfa, 0xcf);
 	GDTSetGate(4, 0, 0xffffffff, 0xf2, 0xcf);
 
-	#ifdef FREE_STANDING_MODE
+	#ifndef __EMULATOR__
 	GDTFlush((uint32)(&gdt_ptr));
 	#endif
 

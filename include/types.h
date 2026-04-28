@@ -8,23 +8,18 @@
 #define false 0
 
 #define PACKED __attribute__((packed))
-
 #define UNUSED __attribute__((unused))
+#define PUBLIC __attribute__((visibility("default"))) 
+#define PRIVATE __attribute__((visibility("hidden"))) 
 
 #define INT8_MIN (int8)(0x80)
-
 #define INT16_MIN (int16)(0x8000)
-
 #define INT32_MIN (int32)(0x80000000)
-
 #define INT64_MIN (int64)(0x8000000000000000)
 
 #define UINT8_MIN (uint8)(0)
-
 #define UINT16_MIN (uint16)(0)
-
 #define UINT32_MIN (uint32)(0)
-
 #define UINT64_MIN (uint64)(0)
 
 #define INT8_MAX (int8)(0x7F)
@@ -82,13 +77,9 @@ typedef enum ErrorCode {
 
 // #define OS_BIG_ENDIAN
 
-#if !defined(__STDC_HOSTED__) || __STDC_HOSTED__ == 0
-	#define FREE_STANDING_MODE
-#endif
-
 // #define BITS_16
 
-#ifdef FREE_STANDING_MODE
+#ifndef __EMULATOR__
 #define BITS_32
 #else
 #define BITS_64
