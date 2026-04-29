@@ -180,8 +180,16 @@ void exec_all_emulator_ints(pic_t* pic) {
 	}
 }
 
-void call_emulator_int(pic_t* pic, byte _int) {
+void call_emulator_int(pic_t* _pic, byte _int) {
+	pic_t* pic = _pic;
+	
 	if (!pic) pic = cur;
+
+	if (!pic) {
+		emulator_log(false, LOG_SEVERITY_ERROR, "No PIC instance provided to call");
+
+		return;
+	}
 
 	_int = _int & 0xFF;
 

@@ -127,8 +127,6 @@ typedef int64 ssize_t;
 
 #endif
 
-typedef size_t word;
-
 typedef char* c_str;
 
 typedef c_str* c_str_ptr;

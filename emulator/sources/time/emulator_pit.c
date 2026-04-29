@@ -26,7 +26,7 @@ static uint64 get_ms_from_divisor(uint16 _divisor) {
 }
 
 void setup_pit(emulator_t* emulator) {
-	emulator_setup_tick_timer(emulator, gen_tick, get_ms_from_divisor(0));
+	// emulator_setup_tick_timer(emulator, gen_tick, get_ms_from_divisor(0));
 }
 
 pit_t* init_pit(pic_t* pic) {

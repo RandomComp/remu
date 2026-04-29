@@ -424,8 +424,6 @@ static void send_brake(byte scancode) {
 	if (!cur) return;
 
 	send_make(scancode | 0x80);
-
-	call_emulator_int(nullptr, 0x21);
 }
 
 #ifdef EMULATOR_SDL_USING
@@ -463,8 +461,28 @@ void handle_key_gui(byte sdl_scancode, bool is_key_released) {
 }
 #endif
 
+static byte read_ch() {
+	byte c = '\0';
+
+	read(STDIN_FILENO, &c, 1);
+
+	while (!c) {
+		read_index = read(STDIN_FILENO, &c, 1);
+
+		if (read_index == 0) {
+			emulator_log(false, LOG_SEVERITY_INFO, "Exiting emulator because pressed Ctrl+C...");
+	
+			exit_emulator(0);
+
+			return '\0';
+		}
+	}
+
+	return c;
+}
+
 void handle_keys_cli() {
-	uint8 c = '\0';
+	byte c = '\0';
 
 	_ssize_t read_num = read(STDIN_FILENO, &c, 1);
 
@@ -478,13 +496,60 @@ void handle_keys_cli() {
 
 	if (!cur) return;
 
-	const c_str chars = "\x1B" "0123456789-=\b\x7F\tqwertyuiop[]\rasdfghjkl;'\\zxcvbnm,./* ";
+	if (!c) return;
 
 	available = false;
 
 	writed_cnt = 0;
 
 	read_index = 0;
+
+	if (c == '\x1B' && read_ch() == '[') {
+		byte letter = read_ch();
+
+		const char arrows_letter[] = "ABCD";
+
+		const char arrows[] = {
+			EXT_SCANCODE_ARROW_UP,
+			EXT_SCANCODE_ARROW_DOWN,
+			EXT_SCANCODE_ARROW_RIGHT,
+			EXT_SCANCODE_ARROW_LEFT,
+		};
+
+		bool find = false;
+
+		for (size_t i = 0; i < sizeof(arrows); i++) {
+			if (arrows_letter[i] == letter) {
+				c = arrows[i]; find = true; break;
+			}
+		}
+
+		if (find) {
+			send_make(SCANCODE_EXTENDED);
+
+			send_make(c);
+
+			available = true;
+
+			cur_time += 10;
+
+			return;
+		}
+	}
+
+	const c_str chars = "\xE0" "\x1B" "0123456789-=\b\x7F\tqwertyuiop[]\rasdfghjkl;'\\zxcvbnm,./* ";
+
+	size_t chars_cnt = strlen(chars);
+
+	bool supported = false;
+
+	for (size_t i = 0; i < chars_cnt; i++) {
+		if (chars[i] == c) {
+			supported = true; break;
+		}
+	}
+
+	if (!supported) return;
 
 	size_t buf_size = sizeof(cur->pressed_key);
 

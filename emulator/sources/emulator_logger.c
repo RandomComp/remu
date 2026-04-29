@@ -14,7 +14,7 @@
 
 #include <stdarg.h>
 
-static log_severity_e min_log_severity = LOG_SEVERITY_VERBOSE; // 0 для отключения логов
+static log_severity_e min_log_severity = 0; // 0 для отключения логов
 
 static log_severity_e max_log_severity = 10; // 0 для отключения логов
 
@@ -76,7 +76,8 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 		[LOG_SEVERITY_VERBOSE] 	=	"VERB",
 		[LOG_SEVERITY_INFO] 	=	"INFO",
 		[LOG_SEVERITY_WARNING] 	= 	"WARN",
-		[LOG_SEVERITY_ERROR] 	= 	"ERROR"
+		[LOG_SEVERITY_ERROR] 	= 	"ERROR",
+		[LOG_SEVERITY_REPORT] 	= 	"KERNEL"
 	};
 
 	const c_str severities_color[] = {
@@ -84,7 +85,8 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 		[LOG_SEVERITY_VERBOSE] 	=	white_fg,
 		[LOG_SEVERITY_INFO] 	= 	bold white_fg,
 		[LOG_SEVERITY_WARNING] 	= 	bold bright_yellow_fg,
-		[LOG_SEVERITY_ERROR] 	= 	bold red_fg	
+		[LOG_SEVERITY_ERROR] 	= 	bold red_fg,
+		[LOG_SEVERITY_REPORT] 	= 	blink bold red_fg	
 	};
 
 	const _size_t severities_cnt = sizeof(severities_name) / sizeof(severities_name[0]);
@@ -177,6 +179,9 @@ void free_emulator_logger(logger_t* logger) {
 	logger->last_msg = nullptr; logger->last_msg_size = 0;
 
 	printf("Logger last msg deinitialized!\n\r");
+
+	if (logger->log_file)
+		free(logger->log_file); logger->log_file = nullptr;
 
 	if (logger) free(logger); logger = nullptr;
 

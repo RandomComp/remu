@@ -15,11 +15,14 @@ void putch(byte c);
 
 void clear_line();
 
-void kprint(const c_str str);
+size_t kprint(const c_str str);
+size_t sprint(char *s, const c_str str);
 
 size_t vsprintf(char* s, const c_str format, va_list list);
 
-void kprintf(const c_str format, ...);
+size_t sprintf(char* s, const c_str format, ...);
+
+size_t kprintf(const c_str format, ...);
 
 size_t get_num_digits(ssize_t num, size_t base);
 
@@ -33,7 +36,7 @@ bool islower(byte c);
 byte upper(byte c);
 byte lower(byte c);
 
-char* strtok(char* str, const char* delim);
+byte* strtok(byte* str, const byte* delim);
 
 ErrorCode parse_hex(byte* result, size_t res_size, const c_str str);
 
@@ -42,7 +45,7 @@ uintmax_t parse_num(const c_str str, uintmax_t radix);
 void sprint_hex(char* s, byte* num, size_t size);
 void print_hex(byte* num, size_t size);
 
-size_t snprint_num(char* s, ssize_t size, size_t num, size_t base, bool num_signed, bool always_show_sign);
+size_t sprint_num(char* s, size_t num, size_t base, bool num_signed, bool always_show_sign);
 void print_num(size_t num, size_t base, bool num_signed);
 
 void set_cursor_pos(ssize_t x, ssize_t y);

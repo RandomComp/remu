@@ -81,23 +81,45 @@ void putch(byte c) {
 void clear_line() {
 	ssize_t old_x = cur_x, old_y = cur_y;
 
-	for (size_t i = 0; i < COLUMNS - cur_x; i++) {
+	for (size_t i = 0; i < (COLUMNS - cur_x); i++) {
 		putch(' ');
 	}
 
 	set_cursor_pos(old_x, old_y);
 }
 
-void kprint(const c_str str) {
-	if (!vidmem) return;
+size_t kprint(const c_str str) {
+	if (!vidmem) return 0;
 
-	for (size_t i = 0; str[i]; i++) {
+	size_t i = 0;
+
+	for (; str[i]; i++) {
 		if (str[i] == '\n') {
 			putch('\n'); putch('\r');
 		}
 		
 		else putch(str[i]);
 	}
+
+	return i;
+}
+
+size_t sprint(char *c, const c_str str) {
+	if (!vidmem) return 0;
+
+	size_t index = 0;
+
+	for (size_t i = 0; str[i]; i++) {
+		if (str[i] == '\n') {
+			c[index++] = '\n';
+			c[index++] = '\r';
+		}
+		
+		else
+			c[index++] = str[i];
+	}
+
+	return index;
 }
 
 size_t parse_ext_specf(const char* format, byte def_style) {
@@ -214,6 +236,122 @@ size_t vsprintf(char* s, const c_str format, va_list list) {
 			
 
 			if (format[temp_i] == 'l') {
+				w_index += sprint_num(s, va_arg(list, uint64), 10, false, false);
+
+				temp_i += 1;
+			}
+			
+			else if (format[temp_i] == 'i') {
+				int num = va_arg(list, int);
+
+				w_index += sprint_num(s, num, 10, num < 0, false);
+
+				temp_i += 1;
+			}
+			
+			else if (format[temp_i] == 'x') {
+				int num = va_arg(list, int);
+
+				w_index += sprint_num(s, num, 16, num < 0, false);
+
+				temp_i += 1;
+			}
+			
+			else if (format[temp_i] == 'b') {
+				int num = va_arg(list, int);
+
+				w_index += sprint_num(s, num, 2, num < 0, false);
+
+				temp_i += 1;
+			}
+
+			else if (format[temp_i] == 's') {
+				w_index += sprint(s, va_arg(list, c_str));
+
+				temp_i += 1;
+			}
+
+			else if (format[temp_i] == 'c') {
+				s[w_index++] = va_arg(list, int);
+
+				temp_i += 1;
+			}
+
+			i = temp_i;
+
+			c = format + i;
+		}
+
+		c = format + i;
+
+		if (*c == '\n') {
+			s[w_index++] = '\n';
+			
+			s[w_index++] = '\r';
+		}
+
+		else if (*c == '\0') break;
+		
+		else s[w_index++] = *c;
+	}
+
+	return w_index;
+}
+
+size_t sprintf(char *c, const c_str format, ...) {
+	va_list list;
+
+	va_start(list, format);
+
+	size_t writed = vsprintf(c, format, list);
+
+	va_end(list);
+
+	return writed;
+}
+
+size_t kprintf(const c_str format, ...) {
+	va_list list;
+
+	va_start(list, format);
+	
+	byte def_style = cur_style;
+
+	size_t w_index = 0;
+
+	for (size_t i = 0; format[i]; i++) {
+		char* c = format + i;
+
+		while (*c == '%') {
+			size_t temp_i = i + 1;
+			
+			bool padding = false; // false -- right padding, true -- left padding
+
+			char padding_c = ' ';
+
+			bool print_num_sign = false;
+
+			// if (format[temp_i] == '-') {
+			// 	padding = true;
+
+			// 	temp_i += 1;
+			// }
+
+			// else if (format[temp_i] == '+') {
+			// 	print_num_sign = true;
+
+			// 	temp_i += 1;
+			// }
+
+			// else if (format[temp_i] == '0') {
+			// 	padding_c = '0';
+
+			// 	temp_i += 1;
+			// }
+
+			
+
+			if (format[temp_i] == 'l') {
 				print_num(va_arg(list, uint64), 10, false);
 
 				temp_i += 1;
@@ -230,7 +368,7 @@ size_t vsprintf(char* s, const c_str format, va_list list) {
 			else if (format[temp_i] == 'x') {
 				int num = va_arg(list, int);
 
-				kprint("0x"); print_num(num, 16, num < 0);
+				print_num(num, 16, num < 0);
 
 				temp_i += 1;
 			}
@@ -238,7 +376,7 @@ size_t vsprintf(char* s, const c_str format, va_list list) {
 			else if (format[temp_i] == 'b') {
 				int num = va_arg(list, int);
 
-				kprint("0b"); print_num(num, 2, num < 0);
+				print_num(num, 2, num < 0);
 
 				temp_i += 1;
 			}
@@ -278,16 +416,6 @@ size_t vsprintf(char* s, const c_str format, va_list list) {
 	}
 	
 	set_style(def_style);
-}
-
-void kprintf(const c_str format, ...) {
-	va_list list;
-
-	va_start(list, format);
-	
-	char buf[128] = { 0 };
-
-	vsprintf(buf, format, list);
 
 	va_end(list);
 }
@@ -332,36 +460,48 @@ byte lower(byte c) {
 	return isupper(c) ? (c - 'A' + 'a') : c;
 }
 
-static char* cur_str = nullptr; static size_t cur_str_len = 0; static size_t tok_index = 0;
+static byte* str = nullptr; static size_t str_len = 0;
 
-char* strtok(char* _str, const char* delim) {
-	size_t delim_len = strlen(delim);
+static ssize_t index = 0;
 
-	if (_str) {
-		cur_str = _str; cur_str_len = strlen(cur_str); tok_index = 0;
+byte* strtok(byte* _str, const byte* delim) {
+	if (!_str) {
+		if (!str) return nullptr;
+
+		if (index < 0) return nullptr;
+
+		for (size_t i = index + 1; i < str_len; i++) {
+			if (str[i] == 0) {
+				byte* result = str + i + 1;
+
+				index = i;
+
+				return result;
+			}
+		}
+
+		index = 0;
+		
+		return nullptr;
 	}
 
-	char* str = cur_str;
+	str = _str;
+	
+	size_t delim_len = strlen(delim);
 
-	if (!str || cur_str_len <= 1) return nullptr;
+	str_len = strlen(_str);
 
-	if (tok_index >= cur_str_len - 1) return nullptr;
+	for (size_t i = 0; _str[i]; i++) {
+		size_t min_size = MIN(delim_len, str_len - 1);
 
-	size_t old_tok_index = tok_index;
+		if (strncmp(_str + i, delim, min_size) == 0) {
+			memset(_str + i, 0, min_size);
 
-	for (size_t i = tok_index; i < cur_str_len; i++) {
-		size_t min_size = MIN(delim_len, cur_str_len - i - 1);
-
-		if (strncmp(str + i, delim, min_size) == 0) {
-			memset(str + i, 0, min_size);
-
-			tok_index = i + min_size;
-
-			break;
+			i += min_size - 1;
 		}
 	}
 
-	return str + old_tok_index;
+	return _str;
 }
 
 static const char num_alphabet[] = 
@@ -492,7 +632,7 @@ void print_hex(byte* num, size_t size) {
 	}
 }
 
-static size_t snprint_unum(char* s, ssize_t size, size_t num, size_t base) {
+static size_t sprint_unum(char* s, size_t num, size_t base) {
 	if (base <= 0 || base >= strlen(num_alphabet)) {
 		kprint("Base not in range 2...37\n");
 
@@ -522,7 +662,7 @@ static size_t snprint_unum(char* s, ssize_t size, size_t num, size_t base) {
 	return index + w_index;
 }
 
-size_t snprint_num(char* s, ssize_t size, size_t num, size_t base, bool num_signed, bool always_show_sign) {
+size_t sprint_num(char* s, size_t num, size_t base, bool num_signed, bool always_show_sign) {
 	if (base <= 0 || base >= strlen(num_alphabet)) {
 		return 0;
 	}
@@ -535,19 +675,19 @@ size_t snprint_num(char* s, ssize_t size, size_t num, size_t base, bool num_sign
 		if (sign) {
 			s[0] = '-';
 
-			s += 1; size -= 1;
+			s += 1;
 		}
 
 		else if (always_show_sign) {
 			s[0] = '+';
 
-			s += 1; size -= 1;
+			s += 1;
 		}
 		
 		num = (~num) + 1; // Converting to positive number to negative, and vice versa
 	}
 
-	return snprint_unum(s, size, num, base);
+	return sprint_unum(s, num, base);
 }
 
 void print_num(size_t num, size_t base, bool num_signed) {
@@ -559,7 +699,7 @@ void print_num(size_t num, size_t base, bool num_signed) {
 
 	char buf[64] = { 0 };
 
-	snprint_num(buf, 64, num, base, num_signed, false);
+	sprint_num(buf, num, base, num_signed, false);
 
 	kprint(buf);
 }

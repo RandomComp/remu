@@ -13,6 +13,8 @@
 
 #include "hid/emulator_kbdps2.h"
 
+#include "ata/emulator_hdd_pio.h"
+
 #include "power/emulator_power_control.h"
 
 #include "emulator_multiboot.h"
@@ -65,6 +67,8 @@ struct emulator_t {
 	cmos_t* cmos;
 
 	kbdps2_t* kbdps2;
+
+	hdd_ata_pio_t* hdd;
 
 	tick_timer_t* tick_timers;
 

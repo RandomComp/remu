@@ -266,58 +266,16 @@ byte getch() {
 	return shifted ? shift(c) : c;
 }
 
-static byte buf[64] = { 0 };
-
-byte* getstr(bool show) {
-	byte c = getch();
-
-	ssize_t index = 0;
-
-	while (index < 63) {
-		while (!c) {
-			c = getch();
-
-			halt();
-		}
-
-		if (c == '\r') {
-			if (show) kprint("\n\r");
-			
-			buf[index] = '\0'; break;
-		}
-
-		buf[index] = c;
-
-		if (c == '\b') {
-			if (index >= 1) {
-				if (show) kprint("\b \b");
-
-				index -= 1;
-			}
-		}
-
-		else {
-			if (show) putch(c);
-			
-			index += 1;
-		}
-	}
-			
-	buf[index] = '\0';
-
-	return buf;
-}
-
-byte* getstr_hist(bool show, byte history[][64], ssize_t* command_index, size_t history_len) {
+size_t getstr(bool show, byte* buf, size_t buf_size) {
 	ssize_t index = 0;
 
 	ssize_t cur_x = 0, cur_y = 0;
 		
 	get_cursor_pos(&cur_x, &cur_y);
 
-	memset(buf, 0, 64);
+	memset(buf, 0, buf_size);
 
-	while (index < 63) {
+	while (index < buf_size) {
 		byte c = 0;
 
 		while (!c) {
@@ -326,39 +284,8 @@ byte* getstr_hist(bool show, byte history[][64], ssize_t* command_index, size_t 
 			halt();
 		}
 
-		if (c == '\x18') {
-			*command_index = *command_index - 1;
-
-			while ((*command_index) < 0)
-				*command_index += history_len;
-
-			memcpy(buf, history[*command_index], 64);
-				
-			index = strlen(buf);
-				
-			set_cursor_pos(cur_x, cur_y);
-			clear_line();
-			kprintf("%s [%i/%i]", buf, *command_index, history_len);
-
-			continue;
-		}
-
-		else if (c == '\x19') {
-			*command_index = (*command_index + 1) % history_len;
-
-			memcpy(buf, history[*command_index], 64);
-			
-			index = strlen(buf);
-			
-			set_cursor_pos(cur_x, cur_y);
-			clear_line();
-			kprintf("%s [%i/%i]", buf, *command_index, history_len);
-			
-			continue;
-		}
-
-		else if (c == '\r') {
-			buf[index] = '\0'; index = 64;
+		if (c == '\r') {
+			buf[index] = '\0'; index = buf_size; break;
 		}
 
 		else if (c == '\b') {
@@ -380,7 +307,82 @@ byte* getstr_hist(bool show, byte history[][64], ssize_t* command_index, size_t 
 
 	kprint("\n");
 
-	return buf;
+	return index;
+}
+
+size_t getstr_hist(bool show, byte* buf, size_t buf_size, byte history[][64], ssize_t* command_index, size_t history_len) {
+	ssize_t index = 0;
+
+	ssize_t cur_x = 0, cur_y = 0;
+		
+	get_cursor_pos(&cur_x, &cur_y);
+
+	memset(buf, 0, buf_size);
+
+	while (index < buf_size) {
+		byte c = 0;
+
+		while (!c) {
+			c = getch();
+
+			halt();
+		}
+
+		if (c == '\x18') {
+			*command_index = *command_index - 1;
+
+			while ((*command_index) < 0)
+				*command_index += history_len;
+
+			memcpy(buf, history[*command_index], buf_size);
+				
+			index = strlen(buf);
+				
+			set_cursor_pos(cur_x, cur_y);
+			clear_line();
+			kprintf("%s [hist: %i/%i]", buf, *command_index, history_len);
+
+			continue;
+		}
+
+		else if (c == '\x19') {
+			*command_index = (*command_index + 1) % history_len;
+
+			memcpy(buf, history[*command_index], buf_size);
+			
+			index = strlen(buf);
+			
+			set_cursor_pos(cur_x, cur_y);
+			clear_line();
+			kprintf("%s [hist: %i/%i]", buf, *command_index, history_len);
+			
+			continue;
+		}
+
+		else if (c == '\r') {
+			buf[index++] = '\0'; break;
+		}
+
+		else if (c == '\b') {
+			if (index >= 1) {
+				index -= 1; buf[index] = ' ';
+			}
+		}
+
+		else {
+			buf[index] = c;
+			
+			index += 1;
+		}
+
+		set_cursor_pos(cur_x, cur_y);
+		clear_line();
+		kprint(buf);
+	}
+
+	kprint("\n");
+
+	return index;
 }
 
 void kbdps2_deinit() {

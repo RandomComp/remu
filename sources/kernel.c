@@ -30,6 +30,8 @@
 
 #include "drivers/hid/kbdps2.h"
 
+#include "drivers/ata/ata.h"
+
 #ifdef __EMULATOR__
 __init_kernel_args_t kernel_args = { 0 };
 
@@ -39,31 +41,39 @@ PUBLIC void __emulator_init_kernel(__init_kernel_args_t _kernel_args) {
 #endif
 
 void sh_calc() {
+	byte buf[512] = { 0 };
+
 	kprintf("Enter radix (10 default): ");
 
-	char* typed = getstr(true);
+	getstr(true, buf, 512);
 
-	size_t radix = parse_num(typed, 10);
+	size_t radix = parse_num(buf, 10);
 
 	radix = radix <= 1 ? 10 : radix;
 
+	memset(buf, 0, 512);
+
 	kprintf("Enter first number: ");
 
-	typed = getstr(true);
+	getstr(true, buf, 512);
 
-	size_t first_num = parse_num(typed, radix);
+	size_t first_num = parse_num(buf, radix);
+
+	memset(buf, 0, 512);
 
 	kprintf("Enter second number: ");
 
-	typed = getstr(true);
+	getstr(true, buf, 512);
 
-	size_t second_num = parse_num(typed, radix);
+	size_t second_num = parse_num(buf, radix);
+
+	memset(buf, 0, 512);
 
 	kprintf("Enter operator: ");
 
-	typed = getstr(true);
+	getstr(true, buf, 512);
 
-	char op_c = typed[0];
+	char op_c = buf[0];
 
 	const char supported_ops[] = "+-*/%~&|^";
 
@@ -218,14 +228,254 @@ void show_info(multiboot_info_t* multiboot) {
 
 	kprint("\n");
 	
-	if (is_fb_available) kprintf("\tVideo memory address: %vfby%x", multiboot->fb_addr);
+	if (is_fb_available)
+		kprintf("\tVideo memory address: %vfby%x\n", multiboot->fb_addr);
+
+	bool is_boot_device_available = (multiboot->flags & 0x02) != 0;
+
+	if (is_boot_device_available) {
+		byte bios_num = (multiboot->boot_device >> 24) & 0xFF;
+
+		bool is_floppy = bios_num == 0x00;
+
+		bool is_hard = bios_num & 0x80;
+		byte hard_num = bios_num & 0x0F;
+
+		byte main_part = (multiboot->boot_device >> 16) & 0xFF;
+
+		byte logic_part = (multiboot->boot_device >> 8) & 0xFF;
+
+		kprintf("\tOS Loaded from ");
+
+		if (is_floppy)
+			kprintf("floppy ");
+		else if (is_hard) {
+			kprintf("hard disk #%i ", hard_num);
+		}
+
+		if (main_part != 0xFF) {
+			if (logic_part == 0xFF) {
+				kprintf("part %i ", main_part);
+			}
+
+			else {
+				kprintf("logical part %i on part %i ", logic_part, main_part);
+			}
+		}
+
+		kprint("(getted from multiboot)");
+	}
+
+	kprint("\n");
+
+	uint32 sectors = 0;
+
+	byte model_name[20] = { 0 };
+
+	byte serial_number[10] = { 0 };
+
+	ata_read_info(ATA_MASTER, &sectors, model_name, serial_number);
+
+	size_t mb = sectors / (1024 * 2);
+
+	kprintf("\tSectors count: %vfby%i%vd (%vfby%i%vd mb)\n", sectors, mb);
+	
+	kprintf("\tModel name: %s\n", model_name);
+	
+	kprintf("\tSerial number: %s\n", serial_number);
 
 	kprint("\n");
 }
 
+void ata_cmd(const char** argv, size_t argc) {
+	if (argc < 1) {
+		kprintf("%vfbrToo few arguments, needing minimal one argument: action name\n");
+
+		return;
+	}
+
+	const char* action = argv[0];
+
+	if (strcmp(action, "help") == 0) {
+		kprintf("Usage:\n");
+
+		kprintf("\t%vfbyata [action] [sector (if write/read)] [data (if write)]\n");
+
+		kprintf("available actions: \n");
+
+		kprintf("\thelp -- see help\n");
+
+		kprintf("\tinfo -- see ATA info\n");
+
+		kprintf("\tdump -- see ATA memory dump\n");
+
+		kprintf("\tread -- read data from ATA\n");
+
+		kprintf("\twrite -- write data to ATA\n");
+
+		return;
+	}
+
+	else if (strcmp(action, "info") == 0) {
+		uint32 sectors = 0;
+
+		byte model_name[20] = { 0 };
+
+		byte serial_number[10] = { 0 };
+
+		ata_read_info(ATA_MASTER, &sectors, model_name, serial_number);
+
+		size_t mb = sectors / (1024 * 2);
+
+		kprintf("\tSectors count: %vfby%i%vd (%vfby%i%vd mb)\n", sectors, mb);
+		
+		kprintf("\tModel name: %s\n", model_name);
+		
+		kprintf("\tSerial number: %s\n", serial_number);
+
+		return;
+	}
+
+	else if (strcmp(action, "dump") == 0) {
+		size_t bytes = ata_read_size(ATA_MASTER);
+
+		size_t last_i = 0;
+
+		for (size_t i = 0; i < bytes; i++) {
+			byte data = ata_read_byte(ATA_MASTER, i);
+
+			if (!data) continue;
+
+			if (i != (last_i + 1)) {
+				kprintf("\nData from %i: ", i);
+			}
+
+			putch(data);
+
+			last_i = i;
+		}
+
+		kprint("\n");
+
+		return;
+	}
+
+	if (argc < 2) {
+		kprintf("%vfbrToo few arguments, needing 2 argument: action name and sector\n");
+
+		return;
+	}
+
+	size_t sector = parse_num(argv[1], 10);
+
+	byte buf[512] = { 0 };
+
+	if (strcmp(action, "read") == 0) {
+		char* sector_str = argv[1];
+
+		ata_read_sector(buf, ATA_MASTER, sector, 1);
+
+		kprintf("Data from master disk sector %i: %s\n", sector, buf);
+	}
+	
+	else if (strcmp(action, "write") == 0) {
+		if (argc < 3) {
+			kprintf("%vfbrToo few arguments, needing 3 and more arguments: action name, sector and data1, data2... etc \n");
+
+			return;
+		}
+
+		uint32 sectors = 0;
+
+		ata_read_info(ATA_MASTER, &sectors, nullptr, nullptr);
+
+		size_t buf_index = 0;
+
+		for (size_t i = 0; i < argc - 2; i++) {
+			buf_index += sprint(buf + buf_index, argv[i + 2]);
+		}
+
+		ata_write_sector(buf, ATA_MASTER, sector, 1);
+
+		ata_flush();
+	}
+	
+	else {
+		kprintf("%vfbrUnknown action \"%s\"\n", action);
+	}
+}
+
+void graphtest() {
+	byte src_style = get_style();
+
+	disable_blink();
+	
+	for (size_t i = 0; i < ROWS; i++) {
+		for (size_t j = 0; j < COLUMNS; j++) {
+			set_style(0x00);
+
+			set_cursor_pos(j, i);
+
+			float x = j; float y = i;
+
+			x = (((float)x / (float)COLUMNS) * 2.0f) - 1.0f;
+			y = (((float)y / (float)ROWS) * 2.0f) - 1.0f;
+
+			x *= ((float)COLUMNS / (float)ROWS) / ((float)16 / (float)8);
+			
+			if ((x * x + y * y) < 0.5f) {
+			}
+			set_style((byte)((x * x + y * y) * 15.0f) << 4);
+
+			putch(' ');
+		}
+	}
+
+	set_style(src_style);
+
+	const c_str msg = "Press 'q' to quit"; size_t msg_len = strlen(msg);
+
+	size_t spaces = (COLUMNS / 2) - (msg_len / 2);
+
+	for (size_t i = 0; i < spaces; i++) {
+		putch(' ');
+	}
+
+	kprintf("%s\r", msg);
+
+	byte ch = getch();
+
+	while (ch != 'q') {
+		ch = getch(); halt();
+	}
+}
+
 static byte history[16][64] = { 0 };
 
-static ssize_t command_index = 1;
+static ssize_t command_index = 0;
+
+void show_history() {
+	for (int i = 0; i < 16; i++) {
+		c_str msg = history[i];
+
+		if (strlen(msg) > 0) {
+			kprintf("\t%i. %s\n", i, msg);
+		}
+	}
+
+	kprintf("\tCurrent: %i/%i\n", command_index, 16);
+}
+
+void report(const c_str msg) {
+	#ifdef __EMULATOR__
+	if (kernel_args.__emulator_kernel_report)
+		kernel_args.__emulator_kernel_report(msg);
+	#endif
+}
+
+void ata_int_handler(struct registers_t* regs) {
+	// kprintf("ATA ready\n");
+}
 
 PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 	if (magic != 0x2BADB002 || !multiboot) return;
@@ -258,36 +508,38 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 
 	kprintf(" %vfbgdone\n");
 
-	kprintf(logo); kprintf("\n\n");
+	IDTIRQInstallHandler(0x0E, ata_int_handler);
 
-	kprintf(version_logo); kprintf("\n\n");
+	byte buf[512] = { 0 };
 
 	while (true) {
-		kprintf("Emulator OS:$ ");
+		kprintf("emush:$ ");
 
-		ssize_t index = 0;
+		size_t cnt = getstr_hist(true, buf, 512, history, &command_index, 16);
 
-		byte* typed = getstr_hist(true, history, &command_index, 16);
+		byte src_typed[512] = { 0 };
 
-		byte src_typed[64] = { 0 };
+		memcpy(src_typed, buf, cnt);
 
-		memcpy(src_typed, typed, 64);
+		c_str command = strtok(buf, " ");
 
-		c_str command = strtok(typed, " ");
+		char* argv[16] = { "" };
+
+		size_t argc = 0;
+		
+		byte c = 0;
 
 		if (!command) {
 			continue;
 		}
 
-		// c_str arg = strtok(nullptr, " ");
+		c_str arg = strtok(nullptr, " ");
 
-		// while (arg != nullptr) {
-		// 	kprintf("\"%s\"\n", arg);
-			
-		// 	arg = strtok(nullptr, " ");
-		// }
+		while (arg != nullptr) {
+			argv[argc++] = arg;
 
-		bool known_command = false;
+			arg = strtok(nullptr, " ");
+		}
 
 		if (strcmp(command, "help") == 0) {
 			kprintf("\thelp -- see help\n");
@@ -296,9 +548,17 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 
 			kprintf("\techo -- echoes back the arguments\n");
 
+			kprintf("\tlogo -- system logo\n");
+
 			kprintf("\treadme -- readme instruction\n");
 
+			kprintf("\thistory -- show commands history\n");
+
 			kprintf("\tinfo -- see information about system\n");
+
+			kprintf("\tata -- manipulate ata drives\n");
+
+			kprintf("\tgraphtest -- see graphical test in text mode\n");
 
 			kprintf("\ttime -- see system time\n");
 
@@ -308,19 +568,22 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 		}
 
 		else if (strcmp(command, "clear") == 0) {
-			clear_screen(0x0F);
+			clear_screen(0x00);
+			set_style(0x0F);
 		}
 
 		else if (strcmp(command, "echo") == 0) {
-			c_str arg = strtok(nullptr, " ");
-
-			while (arg != nullptr) {
-				kprintf(arg);
-				
-				arg = strtok(nullptr, " ");
+			for (size_t i = 0; i < argc; i++) {
+				kprintf("%s\n", argv[i]);
 			}
 
 			kprint("\n");
+		}
+
+		else if (strcmp(command, "logo") == 0) {
+			kprintf(logo); putch('\n');
+
+			kprintf(version_logo);
 		}
 
 		else if (strcmp(command, "readme") == 0) {
@@ -328,8 +591,20 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 					"during the development of an emulator with paravirtualization support\n");
 		}
 
+		else if (strcmp(command, "history") == 0) {
+			show_history();
+		}
+
 		else if (strcmp(command, "info") == 0) {
 			show_info(multiboot);
+		}
+
+		else if (strcmp(command, "ata") == 0) {
+			ata_cmd(argv, argc);
+		}
+
+		else if (strcmp(command, "graphtest") == 0) {
+			graphtest();
 		}
 
 		else if (strcmp(command, "time") == 0) {

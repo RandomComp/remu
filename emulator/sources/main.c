@@ -150,6 +150,8 @@ typedef struct __init_kernel_args_t {
 	uint64 (*__emulator_start_tsc)(void);
 
 	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
+
+	void (*__emulator_kernel_report)(const c_str msg);
 } __init_kernel_args_t;
 
 static void* emulator_get_ram() {
@@ -166,14 +168,27 @@ static bool cpu_need_to_halt = false;
 
 static uint64 itval_ns = 0;
 
-void wait_halt() {
+static void wait_halt() {
 	usleep(itval_ns / 1000);
 
 	cpu_need_to_halt = true;
 }
 
-uint64 start_tsc() {
+static uint64 start_tsc() {
 	return emulator && emulator->cpu ? emulator->cpu->tsc_start : 0;
+}
+
+static void report(const c_str msg) {
+	emulator_log(true, LOG_SEVERITY_REPORT, msg ? msg : "No message provided.");
+
+	// free_emulator(emulator);
+
+	// exit(0xBD);
+
+	// #ifdef EMULATOR_SDL_USING
+	// IMG_Quit();
+	// SDL_Quit();
+	// #endif
 }
 
 int main(int argc, const char** argv) {
@@ -314,6 +329,7 @@ int main(int argc, const char** argv) {
 	kernel_args.__emulator_wait_halt = wait_halt;
 	kernel_args.__emulator_start_tsc = start_tsc;
 	kernel_args.__emulator_idt_flush = idt_flush_emulator;
+	kernel_args.__emulator_kernel_report = report;
 
 	__emulator_init_kernel(kernel_args);
 

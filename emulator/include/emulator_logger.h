@@ -15,6 +15,7 @@ typedef enum log_severity_e {
 	LOG_SEVERITY_INFO,
 	LOG_SEVERITY_WARNING,
 	LOG_SEVERITY_ERROR,
+	LOG_SEVERITY_REPORT,
 } log_severity_e;
 
 typedef struct logger_t {

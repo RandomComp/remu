@@ -12,6 +12,8 @@
 
 #include "hid/emulator_kbdps2.h"
 
+#include "ata/emulator_hdd_pio.h"
+
 #include "power/emulator_power_control.h"
 
 #include "emulator_multiboot.h"
@@ -292,6 +294,8 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 
 	emulator->kbdps2 = init_kbdps2(emulator->gui);
 
+	emulator->hdd = init_hdd_ata_pio(8 * 2); // 8 KB
+
 	init_power_control();
 
 	emulator_setup_port_in(0x80, debug_read);
@@ -479,6 +483,10 @@ void free_emulator(emulator_t* _emulator) {
 		free_kbdps2(emulator->kbdps2); emulator->kbdps2 = nullptr;
 
 		release_all_kbdps2();
+	}
+
+	if (emulator->hdd) {
+		free_hdd_ata_pio(emulator->hdd); emulator->hdd = nullptr;
 	}
 
 	if (emulator->cmos) {

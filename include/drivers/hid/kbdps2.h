@@ -114,9 +114,9 @@ void kbdps2_init();
 
 byte getch();
 
-byte* getstr(bool show);
+size_t getstr(bool show, byte* buf, size_t buf_size);
 
-byte* getstr_hist(bool show, byte history[][64], ssize_t* command_index, size_t history_len);
+size_t getstr_hist(bool show, byte* buf, size_t buf_size, byte history[][64], ssize_t* command_index, size_t history_len);
 
 void kbdps2_deinit();
 
