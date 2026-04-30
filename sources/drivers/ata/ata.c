@@ -2,15 +2,25 @@
 
 #include "types.h"
 
+#include "std.h"
+
 #include "drivers/memory/memory.h"
 
 #include "builtins/builtins.h"
+
+#include "builtins/string.h"
 
 void ata_wait_until_state(byte _state) {
 	byte state = in8(ATA_STATUS);
 
 	while ((state & _state) != _state) {
 		state = in8(ATA_STATUS);
+
+		if ((state & ATA_SR_ERR) != 0) {
+			kprintf("%vfbrATA error: %s\n", ata_get_error());
+
+			return;
+		}
 
 		#ifdef __EMULATOR__
 		halt();
@@ -24,13 +34,19 @@ void ata_wait_not_until_state(byte _state) {
 	while ((state & _state) == _state) {
 		state = in8(ATA_STATUS);
 
+		if ((state & ATA_SR_ERR) != 0) {
+			kprintf("%vfbrATA error: %s\n", ata_get_error());
+
+			return;
+		}
+
 		#ifdef __EMULATOR__
 		halt();
 		#endif
 	}
 }
 
-void ata_write_sector(uint16* _buf, byte drive, uint32 sector, byte sectors) {
+void ata_write_sector(void* _buf, byte drive, uint32 sector, byte sectors) {
 	ata_wait_not_until_state(ATA_SR_BSY);
 
 	out8(ATA_DRIVE_SEL, drive);
@@ -46,14 +62,17 @@ void ata_write_sector(uint16* _buf, byte drive, uint32 sector, byte sectors) {
 
 	ata_wait_until_state(ATA_SR_DRQ);
 
-	uint16* buf = _buf;
+	uint16* buf = (uint16*)_buf;
 
 	for (size_t i = 0; i < 256; i++) {
-		out16(ATA_DATA, buf[i]);
+		if (buf)
+			out16(ATA_DATA, buf[i]);
+		else
+			out16(ATA_DATA, 0);
 	}
 }
 
-void ata_read_sector(uint16* buf, byte drive, uint32 sector, byte sectors) {
+void ata_read_sector(void* _buf, byte drive, uint32 sector, byte sectors) {
 	ata_wait_not_until_state(ATA_SR_BSY);
 
 	out8(ATA_DRIVE_SEL, drive);
@@ -68,6 +87,8 @@ void ata_read_sector(uint16* buf, byte drive, uint32 sector, byte sectors) {
 	ata_wait_not_until_state(ATA_SR_BSY);
 
 	ata_wait_until_state(ATA_SR_DRQ);
+
+	uint16* buf = (uint16*)_buf;
 
 	for (size_t i = 0; i < (size_t)sectors * 256; i++) {
 		buf[i] = in16(ATA_DATA);
@@ -92,6 +113,52 @@ void ata_flush() {
 	out8(ATA_COMMAND, ATA_CMD_FLUSH);
 
 	ata_wait_not_until_state(ATA_SR_BSY);
+}
+
+byte* ata_get_error() {
+	const byte* errors_descriptions[] = {
+		"bad block",
+		"uncorrected data",
+		"media changed",
+		"sector not found",
+		"media change request",
+		"operation not supported",
+		"cannot found 0 track",
+		"address mark not found",
+	};
+
+	const byte errors[] = {
+		ATA_ERR_BADBLK,
+		ATA_ERR_UNC_DATA,
+		ATA_ERR_MEDIA_CHANGED,
+		ATA_ERR_ID_NOT_FOUND,
+		ATA_ERR_MEDIA_CHANGED_RQ,
+		ATA_ERR_ABORT,
+		ATA_ERR_TRACK_0_NOT_FOUND,
+		ATA_ERR_ADDRESS_MARK_NOT_FOUND,
+	};
+
+	byte status = in8(ATA_STATUS);
+
+	if ((status & ATA_SR_ERR) != 0) {
+		byte errcode = in8(ATA_ERROR_REG);
+
+		c_str error_msg = "Unknown error.";
+
+		for (size_t i = 0; i < sizeof(errors); i++) {
+			if ((errcode & errors[i]) != 0) {
+				error_msg = errors_descriptions[i]; break;
+			}
+		}
+
+		return error_msg;
+	}
+
+	return "No error.";
+}
+
+bool ata_available(byte drive) {
+
 }
 
 void ata_read_info(byte drive, uint32* _sectors, byte* model_name, byte* serial_number) {
@@ -123,20 +190,24 @@ void ata_read_info(byte drive, uint32* _sectors, byte* model_name, byte* serial_
 		for (size_t i = 0; i < 20 && info[i + 27]; i++) {
 			uint16 word = info[i + 27];
 			
-			model_name[i * 2] = (word >> 8) & 0xFF;
+			model_name[(i * 2)] = (word >> 8) & 0xFF;
 			
 			model_name[(i * 2) + 1] = word & 0xFF;
 		}
+
+		strip_str(model_name, 40);
 	}
 
 	if (serial_number) {
 		for (size_t i = 0; i < 10 && info[i + 10]; i++) {
 			uint16 word = info[i + 10];
 			
-			serial_number[i * 2] = (word >> 8) & 0xFF;
+			serial_number[(i * 2)] = (word >> 8) & 0xFF;
 			
 			serial_number[(i * 2) + 1] = word & 0xFF;
 		}
+
+		strip_str(serial_number, 20);
 	}
 }
 

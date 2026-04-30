@@ -504,6 +504,57 @@ byte* strtok(byte* _str, const byte* delim) {
 	return _str;
 }
 
+byte* parse_cli_args(byte* _str) {
+	if (!_str) {
+		if (!str) return nullptr;
+
+		if (index < 0) return nullptr;
+
+		for (size_t i = index + 1; i < str_len; i++) {
+			if (str[i] == 0) {
+				byte* result = str + i + 1;
+
+				index = i;
+
+				return result;
+			}
+		}
+
+		index = 0;
+		
+		return nullptr;
+	}
+
+	str = _str;
+
+	str_len = strlen(_str);
+
+	bool quotes = false;
+
+	for (size_t i = 0; _str[i]; i++) {
+		if (_str[i] == '"' || 
+			_str[i] == '\'') {
+			quotes = !quotes;
+
+			_str[i] = ' ';
+		}
+
+		if (_str[i] == ' ' && !quotes) {
+			_str[i] = 0;
+		}
+	}
+
+	return _str;
+}
+
+void strip_str(byte* str, size_t size) {
+	for (size_t i = size; i >= 0 && str[i] == ' '; i--) {
+		if (str[i] != ' ') break;
+
+		str[i] = 0;
+	}
+}
+
 static const char num_alphabet[] = 
 	"0123456789"
 	"ABCDEFGHIJ"

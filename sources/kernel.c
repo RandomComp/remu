@@ -32,6 +32,8 @@
 
 #include "drivers/ata/ata.h"
 
+#include "drivers/sfs/sfs.h"
+
 #ifdef __EMULATOR__
 __init_kernel_args_t kernel_args = { 0 };
 
@@ -287,7 +289,7 @@ void show_info(multiboot_info_t* multiboot) {
 	kprint("\n");
 }
 
-void ata_cmd(const char** argv, size_t argc) {
+void ata_cmd(const byte** argv, size_t argc) {
 	if (argc < 1) {
 		kprintf("%vfbrToo few arguments, needing minimal one argument: action name\n");
 
@@ -297,7 +299,7 @@ void ata_cmd(const char** argv, size_t argc) {
 	const char* action = argv[0];
 
 	if (strcmp(action, "help") == 0) {
-		kprintf("Usage:\n");
+		kprintf("%vfbryUsage:\n");
 
 		kprintf("\t%vfbyata [action] [sector (if write/read)] [data (if write)]\n");
 
@@ -319,9 +321,9 @@ void ata_cmd(const char** argv, size_t argc) {
 	else if (strcmp(action, "info") == 0) {
 		uint32 sectors = 0;
 
-		byte model_name[20] = { 0 };
+		byte model_name[40] = { 0 };
 
-		byte serial_number[10] = { 0 };
+		byte serial_number[20] = { 0 };
 
 		ata_read_info(ATA_MASTER, &sectors, model_name, serial_number);
 
@@ -332,6 +334,8 @@ void ata_cmd(const char** argv, size_t argc) {
 		kprintf("\tModel name: %s\n", model_name);
 		
 		kprintf("\tSerial number: %s\n", serial_number);
+
+		kprintf("\tLast error: %s\n", ata_get_error());
 
 		return;
 	}
@@ -346,11 +350,18 @@ void ata_cmd(const char** argv, size_t argc) {
 
 			if (!data) continue;
 
-			if (i != (last_i + 1)) {
+			if ((i != (last_i + 1)) &&
+				i != 0) {
 				kprintf("\nData from %i: ", i);
 			}
 
-			putch(data);
+			if (isascii(data)) {
+				putch(data); putch(' '); putch(' ');
+			}
+
+			else {
+				print_hex(&data, 1); putch(' ');
+			}
 
 			last_i = i;
 		}
@@ -375,7 +386,28 @@ void ata_cmd(const char** argv, size_t argc) {
 
 		ata_read_sector(buf, ATA_MASTER, sector, 1);
 
-		kprintf("Data from master disk sector %i: %s\n", sector, buf);
+		kprintf("Data from master disk sector %i: \n", sector);
+
+		size_t last_i = 0;
+
+		for (size_t i = 0; i < 512; i++) {
+			if (!buf[i]) continue;
+
+			if ((i != (last_i + 1)) &&
+				i != 0) {
+				kprintf("\nData from %i: ", i);
+			}
+
+			if (isascii(buf[i])) {
+				putch(buf[i]); putch(' '); putch(' ');
+			}
+
+			else {
+				print_hex(&(buf[i]), 1); putch(' ');
+			}
+
+			last_i = i;
+		}
 	}
 	
 	else if (strcmp(action, "write") == 0) {
@@ -392,7 +424,7 @@ void ata_cmd(const char** argv, size_t argc) {
 		size_t buf_index = 0;
 
 		for (size_t i = 0; i < argc - 2; i++) {
-			buf_index += sprint(buf + buf_index, argv[i + 2]);
+			buf_index += sprintf(buf + buf_index, "%s ", argv[i + 2]);
 		}
 
 		ata_write_sector(buf, ATA_MASTER, sector, 1);
@@ -402,6 +434,66 @@ void ata_cmd(const char** argv, size_t argc) {
 	
 	else {
 		kprintf("%vfbrUnknown action \"%s\"\n", action);
+	}
+}
+
+void sfs_cmd(const byte** argv, size_t argc) {
+	if (argc < 1) {
+		kprintf("%vfbrToo few arguments, needed mimimal one argument: anction\n"); return;
+	}
+
+	if (strcmp(argv[0], "help") == 0) {
+		kprintf("%vfbyUsage:\n");
+
+		kprintf("\tsfs [action format/create/write/read] [file name] [data to write if write]\n");
+		
+		return;
+	}
+	
+	if (strcmp(argv[0], "format") == 0) {
+		sfs_format(ATA_MASTER);
+		
+		return;
+	}
+	
+	else if (strcmp(argv[0], "ls") == 0) {
+		size_t files_cnt = 0;
+
+		byte* files = sfs_list_files(ATA_MASTER, &files_cnt);
+
+		if (!files) {
+			kprintf("Cannot list files.\n"); return;
+		}
+
+		for (size_t i = 0; i < files_cnt; i++) {
+			kprintf("file \"%s\"\n", files + (i * 64));
+		}
+
+		return;
+	}
+
+	if (argc < 2) {
+		kprintf("%vfbrToo few arguments, needed mimimal one argument: anction and file name\n"); return;
+	}
+
+	byte* file_name = argv[1];
+
+	if (strcmp(argv[0], "create") == 0) {
+		if (argc < 3) {
+			kprintf("%vfbrToo few arguments for \"create\", needing arguments: file name and data (like text)\n"); return;
+		}
+
+		byte* content = argv[2]; size_t content_size = strlen(content);
+
+		sfs_create_file(ATA_MASTER, file_name, content, content_size);
+	}
+
+	else if (strcmp(argv[0], "read") == 0) {
+		byte content[512] = { 0 };
+
+		sfs_read_file(ATA_MASTER, file_name, content);
+
+		kprintf("%s\n", content);
 	}
 }
 
@@ -521,7 +613,7 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 
 		memcpy(src_typed, buf, cnt);
 
-		c_str command = strtok(buf, " ");
+		c_str command = parse_cli_args(buf);
 
 		char* argv[16] = { "" };
 
@@ -533,12 +625,12 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 			continue;
 		}
 
-		c_str arg = strtok(nullptr, " ");
+		c_str arg = parse_cli_args(nullptr);
 
 		while (arg != nullptr) {
 			argv[argc++] = arg;
 
-			arg = strtok(nullptr, " ");
+			arg = parse_cli_args(nullptr);
 		}
 
 		if (strcmp(command, "help") == 0) {
@@ -557,6 +649,8 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 			kprintf("\tinfo -- see information about system\n");
 
 			kprintf("\tata -- manipulate ata drives\n");
+
+			kprintf("\tsfs -- manipulate sfs drives\n");
 
 			kprintf("\tgraphtest -- see graphical test in text mode\n");
 
@@ -601,6 +695,10 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* multiboot) {
 
 		else if (strcmp(command, "ata") == 0) {
 			ata_cmd(argv, argc);
+		}
+
+		else if (strcmp(command, "sfs") == 0) {
+			sfs_cmd(argv, argc);
 		}
 
 		else if (strcmp(command, "graphtest") == 0) {

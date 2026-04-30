@@ -80,7 +80,7 @@ static byte shift(byte c) {
 	if (isalpha(c))
 		return upper(c);
 
-	const c_str shitftable_syms = "1234567880-=/,.`";
+	const c_str shitftable_syms = "1234567880-=[];'`/,.";
 
 	bool is_c_shiftable = false;
 
@@ -105,10 +105,14 @@ static byte shift(byte c) {
 		['0'] = ')',
 		['-'] = '_',
 		['='] = '+',
+		['['] = '{',
+		[']'] = '}',
+		[';'] = ':',
+		['\''] = '"',
+		['`'] = '~',
 		['/'] = '?',
 		[','] = '<',
-		['.'] = '>',
-		['`'] = '~'
+		['.'] = '>'
 	};
 	
 	return shift_sym[c];
@@ -355,6 +359,18 @@ size_t getstr_hist(bool show, byte* buf, size_t buf_size, byte history[][64], ss
 			set_cursor_pos(cur_x, cur_y);
 			clear_line();
 			kprintf("%s [hist: %i/%i]", buf, *command_index, history_len);
+			
+			continue;
+		}
+
+		else if (c == '\x1A') {
+			index = MIN(index + 1, strlen(buf));
+			
+			continue;
+		}
+
+		else if (c == '\x1B') {
+			index = MIN(index - 1, strlen(buf));
 			
 			continue;
 		}

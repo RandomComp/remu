@@ -1,8 +1,9 @@
 #ifndef _EMULATOR_OS_KERNEL_H
 #define _EMULATOR_OS_KERNEL_H
 
-#ifdef __EMULATOR__
 #include "types.h"
+
+#ifdef __EMULATOR__
 
 #include "idt.h"
 

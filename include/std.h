@@ -37,6 +37,8 @@ byte upper(byte c);
 byte lower(byte c);
 
 byte* strtok(byte* str, const byte* delim);
+byte* parse_cli_args(byte* _str);
+void strip_str(byte* str, size_t size);
 
 ErrorCode parse_hex(byte* result, size_t res_size, const c_str str);
 

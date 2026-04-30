@@ -18,22 +18,44 @@
 
 static hdd_ata_pio_t* cur = nullptr;
 
+static bool master_selected = false;
+
+static byte sectors_cnt = 0xFF;
+
+static uint32 lba_addr = 0x00000000;
+
+static _size_t ata_word_index = 0, cur_sector = 0;
+
+#define DATE_WITHOUT_YEAR (char[]){__DATE__[0], __DATE__[1], __DATE__[2], __DATE__[3], __DATE__[4], __DATE__[5], '\0'}
+
+static void ata_reset() {
+	if (!cur) return;
+
+	cur->status = 0x00000000;
+
+	cur->error = 0x00000000;
+
+	cur_sector = 0;
+
+	memset(cur->sector_buffer, 0, 512);
+}
+
 static _size_t read_ata_state() {
 	if (!cur) return 0xFFFFFFFFFFFFFFFF;
 	
-	emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO reading state 0");
+	emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO reading state %b", cur->status);
 
 	return cur->status;
 }
-
-static bool master_selected = false;
 
 static void select_drive(_size_t data) {
 	if (!cur) return;
 
 	data = data & 0xFF;
 
-	bool is_master = data & 0xE0;
+	// CHS and floppy is now unsupported
+
+	bool is_master = data & 0x20;
 
 	if (!is_master) return;
 
@@ -47,8 +69,6 @@ static void select_drive(_size_t data) {
 	}
 }
 
-static byte sectors_cnt = 0xFF;
-
 static void write_sectors_cnt(_size_t data) {
 	if (!cur) return;
 
@@ -56,10 +76,8 @@ static void write_sectors_cnt(_size_t data) {
 
 	sectors_cnt = data;
 
-	emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO ssectors cnt %llu", data);
+	emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO sectors cnt %llu", data);
 }
-
-static uint32 lba_addr = 0x00000000;
 
 static void write_lba_low(_size_t data) {
 	if (!cur) return;
@@ -97,10 +115,6 @@ static void write_lba_high(_size_t data) {
 	lba_addr |= (data << 16);
 }
 
-static _size_t ata_word_index = 0, cur_sector = 0;
-
-#define DATE_WITHOUT_YEAR (char[]){__DATE__[0], __DATE__[1], __DATE__[2], __DATE__[3], __DATE__[4], __DATE__[5], '\0'}
-
 static void ata_command(_size_t command) {
 	if (!cur) return;
 
@@ -108,11 +122,29 @@ static void ata_command(_size_t command) {
 
 	ata_word_index = 0;
 
-	cur->status |= ATA_SR_BSY;
+	cur->status = 0;
+
+	cur->error = 0;
+
+	// memset(cur->sector_buffer, 0, 512);
 
 	if (command == ATA_CMD_READ) {
-		emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO read commmand from address %x", lba_addr);
+		cur->status |= ATA_SR_BSY;
 		
+		emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO read command from address %x", lba_addr);
+		
+		if (lba_addr >= cur->sectors) {
+			cur->status |= ATA_SR_ERR;
+
+			cur->error |= ATA_ERR_ID_NOT_FOUND;
+
+			emulator_log(false, LOG_SEVERITY_ERROR, "HDD ATA PIO read error: addr %u excceds %u sectors", lba_addr, cur->sectors);
+
+			cur->status &= ~ATA_SR_BSY;
+
+			return;
+		}
+
 		memset(cur->sector_buffer, 0, sizeof(cur->sector_buffer));
 
 		fseek(cur->master_file, (long)lba_addr * 512, SEEK_SET);
@@ -120,23 +152,61 @@ static void ata_command(_size_t command) {
 		fread(cur->sector_buffer, 512, 1, cur->master_file);
 
 		cur_sector = 0;
+		
+		cur->status &= ~ATA_SR_BSY;
+
+		cur->status |= ATA_SR_DRQ;
 	}
 
 	else if (command == ATA_CMD_WRITE) {
 		emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO write commmand to address %x", lba_addr);
 
+		if (lba_addr >= cur->sectors) {
+			cur->status |= ATA_SR_ERR;
+
+			cur->error |= ATA_ERR_ID_NOT_FOUND;
+
+			emulator_log(false, LOG_SEVERITY_ERROR, "HDD ATA PIO write error: addr %u excceds %u sectors", lba_addr, cur->sectors);
+
+			cur->status &= ~ATA_SR_BSY;
+			
+			return;
+		}
+		
 		cur_sector = 0;
+
+		cur->status &= ~ATA_SR_BSY;
+			
+		cur->status |= ATA_SR_DRQ;
 	}
 
 	else if (command == ATA_CMD_FLUSH) {
+		emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO buffer flushing...");
+
+		if (lba_addr >= cur->sectors) {
+			cur->error |= ATA_ERR_ID_NOT_FOUND;
+
+			lba_addr = 0;
+			
+			return;
+		}
+		
+		cur->status |= ATA_SR_BSY;
+
 		fseek(cur->master_file, (long)lba_addr * 512, SEEK_SET);
 
 		fwrite(cur->sector_buffer, 512, 1, cur->master_file);
 		
 		memset(cur->sector_buffer, 0, sizeof(cur->sector_buffer));
+		
+		cur->status &= ~ATA_SR_BSY;
+
+		emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO buffer flushed!");
 	}
 
 	else if (command == ATA_CMD_INFO) {
+		cur->status |= ATA_SR_BSY;
+
 		uint16 buf[256] = { 0 };
 		
 		buf[83] &= ~0b10000000000; // LBA48 support bit disabling
@@ -170,11 +240,11 @@ static void ata_command(_size_t command) {
 		}
 
 		memcpy(cur->sector_buffer, buf, 512);
+
+		cur->status &= ~ATA_SR_BSY;
+
+		cur->status |= ATA_SR_DRQ;
 	}
-
-	cur->status &= ~ATA_SR_BSY;
-
-	cur->status |= ATA_SR_DRQ;
 
 	call_emulator_int(nullptr, ATA_INT);
 }
@@ -188,13 +258,25 @@ static void write_ata_word(_size_t data) {
 		if (cur_sector < sectors_cnt) {
 			cur->status |= ATA_SR_BSY;
 
+			if (lba_addr >= cur->sectors) {
+				cur->status |= ATA_SR_ERR;
+
+				cur->error |= ATA_ERR_ID_NOT_FOUND;
+
+				emulator_log(false, LOG_SEVERITY_ERROR, "HDD ATA PIO write error: addr %x excceds sectors %x", lba_addr, cur->sectors);
+
+				cur->status &= ~ATA_SR_BSY;
+
+				lba_addr = 0;
+				
+				return;
+			}
+
 			fseek(cur->master_file, (long)lba_addr * 512, SEEK_SET);
 
 			fwrite(cur->sector_buffer, 512, 1, cur->master_file);
 
 			cur->status &= ~ATA_SR_BSY;
-
-			cur->status |= ATA_SR_DRQ;
 
 			cur_sector += 1;
 		}
@@ -224,6 +306,22 @@ static _size_t read_ata_word() {
 		if (cur_sector < sectors_cnt) {
 			cur->status |= ATA_SR_BSY;
 
+			cur->status &= ~ATA_SR_DRQ;
+
+			if (lba_addr >= cur->sectors) {
+				cur->status |= ATA_SR_ERR;
+
+				cur->error |= ATA_ERR_ID_NOT_FOUND;
+
+				emulator_log(false, LOG_SEVERITY_ERROR, "HDD ATA PIO read error: addr %x excceds sectors %x", lba_addr, cur->sectors);
+
+				cur->status &= ~ATA_SR_BSY;
+
+				lba_addr = 0;
+				
+				return 0xFF;
+			}
+
 			fseek(cur->master_file, (long)lba_addr * 512, SEEK_SET);
 
 			fread(cur->sector_buffer, 512, 1, cur->master_file);
@@ -236,7 +334,11 @@ static _size_t read_ata_word() {
 		}
 		
 		else {
-			cur->status = 0; cur_sector = 0;
+			cur->status = 0x00000000;
+
+			cur->error = 0x00000000;
+
+			cur_sector = 0;
 
 			return 0;
 		}
@@ -253,10 +355,18 @@ static _size_t read_ata_word() {
 	return (_size_t)(result & 0xFFFF);
 }
 
+_size_t read_error_reg() {
+	if (!cur) return ATA_ERR_ABORT;
+
+	return cur->error;
+}
+
 hdd_ata_pio_t* init_hdd_ata_pio(_size_t sectors) {
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "ATA PIO initializing...");
 
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "ATA PIO setting up ports (ATA_STATUS, ATA_COMMAND, ATA_DRIVE_SEL, ATA_SECTOR_COUNT, ATA_LBA_LOW, ATA_LBA_MID, ATA_LBA_HIGH, ATA_DATA)");
+
+	emulator_setup_port_in(ATA_ERROR_REG, read_error_reg);
 
 	emulator_setup_port_in(ATA_STATUS, read_ata_state);
 	emulator_setup_port_out(ATA_COMMAND, ata_command);
@@ -278,6 +388,8 @@ hdd_ata_pio_t* init_hdd_ata_pio(_size_t sectors) {
 	memset(hdd->sector_buffer, 0, sizeof(hdd->sector_buffer));
 
 	hdd->status = 0x00000000;
+
+	hdd->error = 0x00000000;
 
 	hdd->sectors = sectors;
 
@@ -335,6 +447,8 @@ void free_hdd_ata_pio(hdd_ata_pio_t* hdd) {
 	hdd->master_file = nullptr;
 
 	if (hdd) free(hdd);
+
+	emulator_release_port_in(ATA_ERROR_REG);
 
 	emulator_release_port_in(ATA_STATUS);
 	emulator_release_port_out(ATA_COMMAND);
