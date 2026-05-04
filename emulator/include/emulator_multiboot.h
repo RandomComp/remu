@@ -19,7 +19,7 @@
 
 #include "types.h"
 
-typedef struct multiboot_aout_symbol_table_t {
+typedef struct PACKED multiboot_aout_symbol_table_t {
 	uint32 tabsize;
 
 	uint32 strsize;
@@ -29,7 +29,7 @@ typedef struct multiboot_aout_symbol_table_t {
 	uint32 reserved;
 } multiboot_aout_symbol_table_t;
 
-typedef struct multiboot_elf_section_header_table_t {
+typedef struct PACKED multiboot_elf_section_header_table_t {
 	uint32 num;
 
 	uint32 size;
@@ -39,7 +39,7 @@ typedef struct multiboot_elf_section_header_table_t {
 	uint32 shndx;
 } multiboot_elf_section_header_table_t;
 
-typedef struct multiboot_info_t {
+typedef struct PACKED multiboot_info_t {
 	/*
 	Битовая маска активных полей сруктуры multiboot
 
@@ -159,5 +159,22 @@ typedef struct PACKED multiboot_mmap_entry_t {
 
 	uint32 type;
 } multiboot_mmap_entry_t;
+
+typedef struct PACKED multiboot_section_t {
+	uint32 magic;
+	uint32 flags;
+	uint32 checksum;
+
+	uint32 unused_0;
+	uint32 unused_1;
+	uint32 unused_2;
+	uint32 unused_3;
+	uint32 unused_4;
+
+	uint32 mode_type;
+	uint32 width;
+	uint32 height;
+	uint32 depth;
+} multiboot_section_t;
 
 #endif

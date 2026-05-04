@@ -6,7 +6,9 @@
 
 #include "memory/emulator_ram.h"
 
-#include "screen/emulator_vga.h"
+#include "screen/emulator_vga_gpu.h"
+
+#include "screen/emulator_vga_screen.h"
 
 #include "time/emulator_cmos.h"
 
@@ -174,7 +176,7 @@ static void debug_write(_size_t data) {
 	return;
 }
 
-emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 frametime_ns, uint64 halted_frametime_ns) {
+emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t frame_width, _ssize_t frame_height, _ssize_t bpp, bool vesa_mode, uint64 frametime_ns, uint64 halted_frametime_ns) {
 	emulator_log(true, LOG_SEVERITY_INFO, "Emulator initialization...");
 
 	emulator_t* emulator = malloc(sizeof(emulator_t));
@@ -215,9 +217,15 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 		
 		emulator_log(true, LOG_SEVERITY_VERBOSE, "SDL texture initialization (for drawing)...");
 
-		emulator->screen_width =  80 * VGA_CHAR_WIDTH;
+		if (vesa_mode) {
+			emulator->screen_width =  frame_width;
+			emulator->screen_height = frame_height;
+		}
 
-		emulator->screen_height = 25 * VGA_CHAR_HEIGHT;
+		else {
+			emulator->screen_width =  frame_width * VGA_CHAR_WIDTH;
+			emulator->screen_height = frame_height * VGA_CHAR_HEIGHT;
+		}
 
 		emulator->screen_texture = SDL_CreateTexture(emulator->renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, emulator->screen_width, emulator->screen_height);
 
@@ -277,16 +285,44 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 
 	setup_pit(emulator);
 
-	#ifdef EMULATOR_SDL_USING
-	emulator->vga = init_vga_text_screen(
-		emulator->screen_texture, emulator->screen, emulator->screen_width, emulator->screen_height, 
-		emulator->gui, emulator->ram, 80, 25
-	);
-	#else
-	emulator->vga = init_vga_text_screen(
-		emulator->ram, 80, 25
-	);
-	#endif
+	if (vesa_mode) {
+		#ifndef EMULATOR_SDL_USING
+		emulator_log(true, LOG_SEVERITY_ERROR, "VESA is unsupported in non-gui mode");
+
+		free_emulator(emulator);
+
+		return nullptr;
+		#endif
+
+		emulator->vesa_gpu = init_vesa_device(
+			frame_width, frame_height, bpp
+		);
+
+		emulator->vesa_screen = init_vesa_screen(
+			emulator->screen_texture, emulator->screen,
+			emulator->screen_width, emulator->screen_height, 
+			emulator->vesa_gpu
+		);
+	}
+
+	else {
+		emulator->vga_gpu = init_vga_text_device(
+			emulator->ram, frame_width, frame_height
+		);
+
+		#ifdef EMULATOR_SDL_USING
+		emulator->vga_screen = init_vga_text_screen(
+			emulator->vga_gpu, 
+			emulator->screen_texture, emulator->screen, 
+			emulator->screen_width, emulator->screen_height, 
+			emulator->gui
+		);
+		#else
+		emulator->vga_screen = init_vga_text_screen(
+			emulator->vga_gpu
+		);
+		#endif
+	}
 
 	emulator->cmos = init_cmos();
 
@@ -341,18 +377,32 @@ void init_emulator_multiboot(emulator_t* _emulator, multiboot_info_t* multiboot_
 		multiboot_info->flags |= 0x01;
 	}
 
-	if (emulator->vga) {
-		multiboot_info->fb_width = emulator->vga->width;
+	if (emulator->vga_gpu) {
+		multiboot_info->fb_width = emulator->vga_gpu->width;
 
-		multiboot_info->fb_height = emulator->vga->height;
+		multiboot_info->fb_height = emulator->vga_gpu->height;
 
-		multiboot_info->fb_addr = emulator->vga->vidmem_ram_addr;
+		multiboot_info->fb_addr = emulator->vga_gpu->vidmem_ram_addr;
 
-		multiboot_info->fb_bpp = emulator->vga->bpp;
+		multiboot_info->fb_bpp = emulator->vga_gpu->bpp;
 
 		multiboot_info->fb_type = FB_TYPE_EGA_TEXT;
 
-		multiboot_info->fb_pitch = emulator->vga->width * emulator->vga->bpp / 8;
+		multiboot_info->fb_pitch = emulator->vga_gpu->width * emulator->vga_gpu->bpp / 8;
+
+		multiboot_info->flags |= 0x1000;
+	}
+
+	if (emulator->vesa_gpu) {
+		multiboot_info->fb_width = emulator->vesa_gpu->width;
+		multiboot_info->fb_height = emulator->vesa_gpu->height;
+		multiboot_info->fb_bpp = emulator->vesa_gpu->bpp;
+
+		multiboot_info->fb_addr = (uint64)(emulator->vesa_gpu->vidmem);
+
+		multiboot_info->fb_type = FB_TYPE_RGB;
+
+		multiboot_info->fb_pitch = emulator->vesa_gpu->width * emulator->vesa_gpu->bpp / 8;
 
 		multiboot_info->flags |= 0x1000;
 	}
@@ -505,8 +555,20 @@ void free_emulator(emulator_t* _emulator) {
 		release_all_cmos();
 	}
 	
-	if (emulator->vga) {
-		release_all_vga_text_screen(emulator->vga); emulator->vga = nullptr;
+	if (emulator->vesa_screen) {
+		free_vesa_screen(emulator->vesa_screen); emulator->vesa_screen = nullptr;
+	}
+	
+	if (emulator->vesa_gpu) {
+		free_vesa_device(emulator->vesa_gpu); emulator->vesa_gpu = nullptr;
+	}
+	
+	if (emulator->vga_screen) {
+		release_all_vga_text_screen(emulator->vga_screen); emulator->vga_screen = nullptr;
+	}
+	
+	if (emulator->vga_gpu) {
+		release_all_vga_text_device(emulator->vga_gpu); emulator->vga_gpu = nullptr;
 	}
 	
 	if (emulator->ram) {

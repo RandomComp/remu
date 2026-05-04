@@ -160,6 +160,23 @@ typedef struct PACKED multiboot_mmap_entry_t {
 	uint32 type;
 } multiboot_mmap_entry_t;
 
+typedef struct PACKED multiboot_section_t {
+	uint32 magic;
+	uint32 flags;
+	uint32 checksum;
+
+	uint32 unused_0;
+	uint32 unused_1;
+	uint32 unused_2;
+	uint32 unused_3;
+	uint32 unused_4;
+
+	uint32 mode_type;
+	uint32 width;
+	uint32 height;
+	uint32 depth;
+} multiboot_section_t;
+
 void display_multiboot(void* ram, uint32 magic, multiboot_info_t* multiboot);
 
 #endif

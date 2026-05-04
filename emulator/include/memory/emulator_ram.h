@@ -5,11 +5,13 @@
 
 #include <stddef.h>
 
-typedef struct ram_t {
+struct ram_t {
 	byte* mem_ptr;
 
 	size_t mem_size;
-} ram_t;
+};
+
+typedef struct ram_t ram_t;
 
 ram_t* init_ram(size_t mem_size);
 

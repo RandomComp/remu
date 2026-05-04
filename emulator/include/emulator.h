@@ -7,7 +7,11 @@
 
 #include "memory/emulator_ram.h"
 
-#include "screen/emulator_vga.h"
+#include "screen/emulator_vga_screen.h"
+#include "screen/emulator_vga_gpu.h"
+
+#include "screen/emulator_vesa_screen.h"
+#include "screen/emulator_vesa_gpu.h"
 
 #include "time/emulator_cmos.h"
 
@@ -62,7 +66,11 @@ struct emulator_t {
 
 	ram_t* ram;
 
-	vga_text_screen_t* vga;
+	vga_text_screen_t* vga_screen;
+	vga_text_device_t* vga_gpu;
+
+	vesa_screen_t* vesa_screen;
+	vesa_device_t* vesa_gpu;
 
 	cmos_t* cmos;
 
@@ -117,7 +125,7 @@ void emulator_forced_update_all_timers(emulator_t* emulator);
 
 void emulator_update_all(emulator_t* emulator);
 
-emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 frametime_ns, uint64 halted_frametime_ns);
+emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t frame_width, _ssize_t frame_height, _ssize_t bpp, bool vesa_mode, uint64 frametime_ns, uint64 halted_frametime_ns);
 
 void free_emulator(emulator_t* emulator);
 

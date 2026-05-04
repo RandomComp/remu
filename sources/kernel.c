@@ -1,3 +1,5 @@
+#define __EMULATOR__
+
 #include "kernel.h"
 
 #include "types.h"
@@ -29,8 +31,22 @@
 #ifdef __EMULATOR__
 __init_kernel_args_t kernel_args = { 0 };
 
+static multiboot_section_t multiboot_section = {
+	.magic = 		0x1BADB002,
+	.flags = 		0b00000111,
+	.checksum = 	-(0x1BADB002 + 0b00000111),
+	.mode_type = 	0,
+	.width = 		800,
+	.height = 		600,
+	.depth = 		32,
+};
+
 PUBLIC void __emulator_init_kernel(__init_kernel_args_t _kernel_args) {
 	kernel_args = _kernel_args;
+}
+
+PUBLIC multiboot_section_t* __emulator_read_multiboot_secton(void) {
+	return &multiboot_section;
 }
 #endif
 
@@ -53,8 +69,36 @@ static ssize_t command_index = 0;
 
 multiboot_info_t* multiboot = nullptr;
 
+const byte font[96][12] = {
+	#include "ascii.fnt"
+};
+
 PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 	if (magic != 0x2BADB002 || !_multiboot) return;
+
+	uint32* fb = (uint32*)(_multiboot->fb_addr);
+
+	uint32 width = _multiboot->fb_width;
+	uint32 height = _multiboot->fb_height;
+	uint32 pitch = (_multiboot->fb_pitch) / sizeof(uint32);
+
+	// TODO: ??????????? ????????? ???????????? ? std.c, ????, ??? ????? ??????? ????????? ??????????? (??? VGA) ? ???????? ??
+
+	for (size_t i = 0; i < width; i++) {
+		size_t c_i = i % 8;
+
+		for (size_t j = 0; j < height; j++) {
+			size_t c_j = j % 12;
+
+			if (font[(i / 8) % 96][c_j] & (1ULL << (7 - c_i))) {
+				fb[i + (j * pitch)] = 0x00FF00;
+			}
+		}
+	}
+	
+	for (;;) halt();
+
+	return;
 
 	multiboot = _multiboot;
 

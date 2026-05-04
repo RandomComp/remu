@@ -206,55 +206,53 @@ int echo_cmd(const byte **argv, size_t argc) {
 }
 
 int set_cmd(const byte** argv, size_t argc) {
-	if (!argv || argc < 2) {
-		size_t max_var_name_len = 0;
-
-		size_t max_var_value_len = 0;
-
-		for (size_t i = 0; i < vars_max_cnt; i++) {
-			byte* name = vars_name[i];
-			
-			byte* value = vars_value[i];
-
-			if ((!name || name[0] == 0) ||
-				(!value || value[0] == 0)) break;
-
-			size_t name_len = strlen(name);
-
-			if (name_len > max_var_name_len) {
-				max_var_name_len = name_len;
-			}
-
-			size_t value_len = strlen(value);
-
-			if (value_len > max_var_value_len) {
-				max_var_value_len = value_len;
-			}
-		}
-
-		kprintf("Ú%0mÄ*s¿\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "");
-
-		kprintf("³%vfbq%=*s%vd³\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "emush variables");
-
-		kprintf("Ã%0mÄ*sÂ%0mÄ*s´\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
-
-		for (size_t i = 0; i < vars_max_cnt; i++) {
-			byte* name = vars_name[i];
-			byte* value = vars_value[i];
-
-			if ((!name || name[0] == 0) ||
-				(!value || value[0] == 0)) break;
-
-			kprintf("³ %vfby%*s%vd ³ %vfbg%*s%vd ³\n", max_var_name_len, name, max_var_value_len, value);
-		}
-
-		kprintf("À%0mÄ*sÁ%0mÄ*sÙ\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
-		
-		return 0;
+	if (argc >= 2) {
+		set_var(argv[0], argv[1]);
 	}
 
-	set_var(argv[0], argv[1]);
+	size_t max_var_name_len = 0;
 
+	size_t max_var_value_len = 0;
+
+	for (size_t i = 0; i < vars_max_cnt; i++) {
+		byte* name = vars_name[i];
+		
+		byte* value = vars_value[i];
+
+			if ((!name || name[0] == 0) ||
+			(!value || value[0] == 0)) break;
+
+		size_t name_len = strlen(name);
+
+		if (name_len > max_var_name_len) {
+			max_var_name_len = name_len;
+		}
+
+		size_t value_len = strlen(value);
+
+		if (value_len > max_var_value_len) {
+			max_var_value_len = value_len;
+		}
+	}
+
+	kprintf("Ú%0mÄ*s¿\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "");
+
+	kprintf("³%vfbq%=*s%vd³\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "emush variables");
+
+	kprintf("Ã%0mÄ*sÂ%0mÄ*s´\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
+
+	for (size_t i = 0; i < vars_max_cnt; i++) {
+		byte* name = vars_name[i];
+		byte* value = vars_value[i];
+
+		if ((!name || name[0] == 0) ||
+			(!value || value[0] == 0)) break;
+
+		kprintf("³ %vfby%*s%vd ³ %vfbg%*s%vd ³\n", max_var_name_len, name, max_var_value_len, value);
+	}
+
+	kprintf("À%0mÄ*sÁ%0mÄ*sÙ\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
+		
 	return 0;
 }
 

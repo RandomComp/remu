@@ -1,0 +1,42 @@
+#ifndef _EMULATOR_VGA_H
+#define _EMULATOR_VGA_H
+
+#include "types.h"
+
+#include "emulator_fwd.h"
+
+#include "memory/emulator_ram.h"
+
+#include "screen/emulator_vga_fwd.h"
+
+struct vga_text_device_t {
+	uint16* vidmem; uint64 vidmem_ram_addr;
+
+	// byte* plane2;
+	
+	_size_t width, height, bpp;
+	
+	_size_t cursor_pos;
+
+	byte crt_reg_a;
+
+	byte mode_reg;
+};
+
+vga_text_device_t* init_vga_text_device(ram_t* ram, _ssize_t columns, _ssize_t rows);
+
+void clear_vga_text_screen(vga_text_device_t* device);
+
+void handle_mouse_move(size_t x, size_t y, int win_x, int win_y);
+
+void handle_mouse_button(size_t x, size_t y, int win_x, int win_y, bool released);
+
+int draw_vga_text(vga_text_device_t* device, const c_str text, byte style, _size_t column, _size_t row);
+
+void free_vga_text_device(vga_text_device_t* device);
+
+void release_all_vga_text_device(vga_text_device_t* device);
+
+void reset_vga_text_device(vga_text_device_t* device);
+
+#endif

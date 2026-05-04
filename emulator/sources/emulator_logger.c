@@ -199,7 +199,7 @@ void free_emulator_logger(logger_t* logger) {
 	printf("Logger last msg deinitialized!\n\r");
 
 	if (logger->log_file)
-		free(logger->log_file); logger->log_file = nullptr;
+		fclose(logger->log_file); logger->log_file = nullptr;
 
 	if (logger) free(logger); logger = nullptr;
 

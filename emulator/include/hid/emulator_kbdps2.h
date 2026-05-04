@@ -8,7 +8,7 @@
 #define INPUT_BUFFER_MAX_SIZE 128
 
 typedef struct kbdps2_t {
-	byte pressed_key[1024]; bool readed_all;
+	byte pressed_key[INPUT_BUFFER_MAX_SIZE]; bool readed_all;
 } kbdps2_t;
 
 // " ", "☺", "☻", "♥", "♦", "♣", 
