@@ -4,5 +4,7 @@
 #include "types.h"
 
 void halt();
+void cli();
+void sti();
 
 #endif

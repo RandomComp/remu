@@ -19,6 +19,8 @@ typedef enum log_severity_e {
 } log_severity_e;
 
 typedef struct logger_t {
+	uint64 start_tsc;
+
 	char* msg; 		size_t msg_size;
 
 	char* last_msg; size_t last_msg_size, repeated_cnt;
@@ -27,8 +29,6 @@ typedef struct logger_t {
 } logger_t;
 
 logger_t* init_emulator_logger();
-
-void emulator_logger_set_emulator(emulator_t* _emulator);
 
 void emulator_log(bool mirror_stdout, log_severity_e severity, const char* format, ...);
 

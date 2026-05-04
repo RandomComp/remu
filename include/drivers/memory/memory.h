@@ -9,16 +9,10 @@ void* get_ram();
 
 size_t get_ram_size(multiboot_info_t* multiboot);
 
-uint8 in8(uint16 port);
+void init_ram(ssize_t size);
 
-uint16 in16(uint16 port);
+void* kmalloc(size_t size);
 
-uint32 in32(uint16 port);
-
-void out8(uint16 port, uint8 data);
-
-void out16(uint16 port, uint16 data);
-
-void out32(uint16 port, uint32 data);
+void kfree(void* mem);
 
 #endif

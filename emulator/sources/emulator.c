@@ -28,7 +28,7 @@
 
 #include "types.h"
 
-#include "math.h"
+#include "math/math.h"
 
 #include <stdlib.h>
 
@@ -124,8 +124,6 @@ void emulator_update_timer(tick_timer_t* tick_timer, uint64 cur_ticks) {
 	}
 
 	time_t dur = cur_ticks - tick_timer->last_time;
-
-	size_t repeated_cnt = 0;
 
 	if (dur >= tick_timer->ms) {
 		tick_timer->handler();
@@ -294,7 +292,7 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, uint64 fram
 
 	emulator->kbdps2 = init_kbdps2(emulator->gui);
 
-	emulator->hdd = init_hdd_ata_pio(8 * 2); // 8 KB
+	emulator->hdd = init_hdd_ata_pio(32 * 2); // 32 KB
 
 	init_power_control();
 
@@ -374,8 +372,14 @@ static void exec_ints_timer_handler(int UNUSED sig) {
 	exec_all_emulator_ints(cur->cpu->pic);
 }
 
+// #include <unistd.h>
+
 static void* kmain_start(void* args) {
-	if (!cur) return nullptr;
+	if (!cur || !(cur->cpu) || !args) {
+		if (args) free(args);
+
+		return nullptr;
+	}
 
 	struct kmain_start_args_t* start_args = (struct kmain_start_args_t*)args;
 
@@ -385,12 +389,18 @@ static void* kmain_start(void* args) {
 
 	void (*kmain)(uint32 magic, multiboot_info_t *multiboot) = start_args->kmain;
 
+	if (!kmain) {
+		free(start_args); return nullptr;
+	}
+
 	free(start_args);
 
-	init_timer(&cur->kmain_ints_exec_timer, cur->cpu->halted_frametime_ns / 2, exec_ints_timer_handler);
+	init_timer(&(cur->kmain_ints_exec_timer), cur->cpu->halted_frametime_ns / 2, exec_ints_timer_handler);
 
 	if (kmain)
 		kmain(magic, multiboot);
+
+	// sleep(5);
 	
 	timer_delete(cur->kmain_ints_exec_timer); cur->kmain_ints_exec_timer = 0;
 

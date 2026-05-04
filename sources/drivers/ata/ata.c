@@ -4,11 +4,13 @@
 
 #include "std.h"
 
-#include "drivers/memory/memory.h"
+#include "drivers/io.h"
 
 #include "builtins/builtins.h"
 
 #include "builtins/string.h"
+
+#include "math/math.h"
 
 void ata_wait_until_state(byte _state) {
 	byte state = in8(ATA_STATUS);
@@ -18,6 +20,8 @@ void ata_wait_until_state(byte _state) {
 
 		if ((state & ATA_SR_ERR) != 0) {
 			kprintf("%vfbrATA error: %s\n", ata_get_error());
+
+			kprintf("%vfbrATA status: %b\n", state);
 
 			return;
 		}
@@ -36,6 +40,8 @@ void ata_wait_not_until_state(byte _state) {
 
 		if ((state & ATA_SR_ERR) != 0) {
 			kprintf("%vfbrATA error: %s\n", ata_get_error());
+
+			kprintf("%vfbrATA status: %b\n", state);
 
 			return;
 		}
@@ -68,7 +74,7 @@ void ata_write_sector(void* _buf, byte drive, uint32 sector, byte sectors) {
 		if (buf)
 			out16(ATA_DATA, buf[i]);
 		else
-			out16(ATA_DATA, 0);
+			out16(ATA_DATA, 0x00);
 	}
 }
 
@@ -158,7 +164,7 @@ byte* ata_get_error() {
 }
 
 bool ata_available(byte drive) {
-
+	return true;
 }
 
 void ata_read_info(byte drive, uint32* _sectors, byte* model_name, byte* serial_number) {
@@ -166,7 +172,7 @@ void ata_read_info(byte drive, uint32* _sectors, byte* model_name, byte* serial_
 
 	uint16 info[256] = { 0 };
 
-	out8(ATA_DRIVE_SEL, drive);
+	out8(ATA_DRIVE_SEL, 0xA0);
 
 	out8(ATA_LBA_LOW, 0);
 	out8(ATA_LBA_MID, 0);
@@ -178,9 +184,9 @@ void ata_read_info(byte drive, uint32* _sectors, byte* model_name, byte* serial_
 		uint32 sectors = 0;
 
 		if ((info[83] & 0b10000000000) == 0) {
-			sectors |= info[60];
+			sectors |= (uint32)info[60];
 
-			sectors |= info[61] << 16;
+			sectors |= ((uint32)info[61]) << 16;
 		}
 
 		*_sectors = sectors;
@@ -217,25 +223,4 @@ uint64 ata_read_size(byte drive) {
 	ata_read_info(drive, &sectors, nullptr, nullptr);
 
 	return (uint64)sectors * 512;
-}
-
-static uint8 sector_buf[512] = { 0 };
-
-static uint64 cur_sector = 0;
-
-static byte cur_drive = 0;
-
-byte ata_read_byte(byte drive, uint64 byte) {
-	uint64 sector = byte / 512;
-
-	if (cur_sector != sector || 
-		cur_drive != drive) {
-		ata_read_sector(sector_buf, ATA_MASTER, (uint32)sector, 1);
-	}
-
-	cur_sector = sector;
-
-	cur_drive = drive;
-
-	return sector_buf[byte % 512];
 }

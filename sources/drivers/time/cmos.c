@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#include "drivers/memory/memory.h"
+#include "drivers/io.h"
 
 #include "bcd.h"
 
@@ -51,7 +51,7 @@ void show_rtc_time() {
 		hour = from_bcd(hour);
 	}
 
-	kprintf("%i:%i:%i", hour, minute, second);
+	kprintf("%.2i:%.2i:%.2i", hour, minute, second);
 
 	if ((reg_b & CMOS_REGISTER_B_IS_24_FORMAT) == 0) {
 		if (pm) kprint(" PM");
@@ -77,7 +77,7 @@ void show_rtc_date() {
 		year = from_bcd(year);
 	}
 
-	kprintf("%i.%i.%i", (int)day, (int)month, (int)(year + 2000));
+	kprintf("%.2i.%.2i.%.4i", (int)day, (int)month, (int)(year + 2000));
 }
 
 byte read_rtc_seconds() {

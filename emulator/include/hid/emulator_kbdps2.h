@@ -3,10 +3,12 @@
 
 #include "types.h"
 
+#include "emulator_fwd.h"
+
 #define INPUT_BUFFER_MAX_SIZE 128
 
 typedef struct kbdps2_t {
-	byte pressed_key[16];
+	byte pressed_key[1024]; bool readed_all;
 } kbdps2_t;
 
 // " ", "☺", "☻", "♥", "♦", "♣", 
@@ -155,7 +157,11 @@ typedef enum ext_scancode_e {
 	EXT_SCANCODE_ARROW_DOWN = 80,
 } ext_scancode_e;
 
+#ifdef EMULATOR_SDL_USING
 void handle_key_gui(byte sdl_scancode, bool is_key_released);
+
+void handle_paste_selected();
+#endif
 
 void handle_keys_cli();
 

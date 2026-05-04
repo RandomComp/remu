@@ -33,7 +33,7 @@ uint64 __qdivrem(uint64 uq, uint64 vq, uint64 *arq) {
 	uint32 uspace[5], vspace[5], qspace[5];
 	
 	if (vq == 0) {
-		static volatile const uint32 zero = 0;
+		volatile const uint32 zero = 0;
 
 		tmp.ul[H] = tmp.ul[L] = 1 / zero;
 

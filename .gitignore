@@ -7,3 +7,4 @@ test.asm
 kernel.bin
 repo_pushing_token
 .fuse_*
+old_show_info

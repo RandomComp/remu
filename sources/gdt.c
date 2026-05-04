@@ -21,7 +21,7 @@ void gdt_init(void) {
 
 	gdt_ptr.limit = (sizeof(struct gdt_entry_struct) * 5) - 1;
 
-	gdt_ptr.base = (uint32)(&gdt_entries);
+	gdt_ptr.base = (size_t)(&gdt_entries);
 
 	GDTSetGate(0, 0, 0, 0, 0);
 	GDTSetGate(1, 0, 0xffffffff, 0x9a, 0xcf);
@@ -30,7 +30,7 @@ void gdt_init(void) {
 	GDTSetGate(4, 0, 0xffffffff, 0xf2, 0xcf);
 
 	#ifndef __EMULATOR__
-	GDTFlush((uint32)(&gdt_ptr));
+	GDTFlush((size_t)(&gdt_ptr));
 	#endif
 
 	bGDTInitialized = true;

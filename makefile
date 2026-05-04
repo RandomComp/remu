@@ -4,7 +4,7 @@ CFLAGS := -Wall
 
 EMULATOR_CFLAGS := $(CFLAGS)
 
-OS_CFLAGS := -fPIC $(CFLAGS) -ffreestanding -nostdlib -nostdinc -fno-inline -fvisibility=hidden -fno-plt -fno-builtin -fno-builtin-functions -fno-common -fno-asynchronous-unwind-tables -fno-stack-protector -D__EMULATOR__
+OS_CFLAGS := -fPIC $(CFLAGS) -ffreestanding -nostdlib -nostdinc -fno-inline -fvisibility=hidden -fno-plt -fno-builtin -fno-builtin-functions -fno-common -fno-asynchronous-unwind-tables -fno-stack-protector -Wno-pointer-sign -D__EMULATOR__
 
 BAREMETAL_CFLAGS := $(CFLAGS) -m32 -ffreestanding
 
@@ -50,8 +50,6 @@ baremetal: kernel.bin image
 image:
 	@echo "Creating hdd.img..."
 
-	@echo "Copy kernel and grub files on partition..."
-
 	@rm -f hdd.img
 
 	@cp kernel.bin img/boot/
@@ -67,7 +65,7 @@ emulator_run:
 	@./emulator.out ./os.so
 
 emulator: $(EMULATOR_OBJFILES)
-	@$(CC) -g $^ -o $@.out -lSDL2 -lSDL2_image -pthread -lm
+	@$(CC) $^ -o $@.out -lSDL2 -lSDL2_image -pthread
 
 os_all: clean_os os clean emulator_run
 

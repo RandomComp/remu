@@ -3,9 +3,9 @@
 
 #include "types.h"
 
-#include "emulator_pic.h"
-
 #include <time.h>
+
+typedef struct pic_t pic_t;
 
 typedef struct cpu_t {
 	pic_t* pic;

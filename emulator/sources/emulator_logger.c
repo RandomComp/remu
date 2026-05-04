@@ -4,7 +4,9 @@
 
 #include "emulator.h"
 
-#include "math.h"
+#include "math/math.h"
+
+#include "utils.h"
 
 #include <stdio.h>
 
@@ -14,15 +16,17 @@
 
 #include <stdarg.h>
 
-static log_severity_e min_log_severity = 0; // 0 для отключения логов
+#if defined(IS_UNIX)
+#include <unistd.h>
+#elif defined(IS_WIN)
+#include <unistd.h>
+#endif
 
+static log_severity_e min_log_severity = LOG_SEVERITY_VERBOSE;
 static log_severity_e max_log_severity = 10; // 0 для отключения логов
 
-static log_severity_e min_log_severity_showing = 0; // 0 для отключения логов
-
+static log_severity_e min_log_severity_showing = 0;
 static log_severity_e max_log_severity_showing = 10; // 0 для отключения логов
-
-static emulator_t* emulator = nullptr; // ONLY for ticks
 
 static logger_t* cur = nullptr;
 
@@ -30,6 +34,8 @@ logger_t* init_emulator_logger() {
 	logger_t* logger = malloc(sizeof(logger_t));
 
 	memset(logger, 0, sizeof(logger_t));
+
+	logger->start_tsc = emulator_read_tsc();
 
 	logger->log_file = fopen("emulator.log", "a");
 
@@ -39,16 +45,12 @@ logger_t* init_emulator_logger() {
 
 	cur = logger;
 
-	// TODO: сделать указание времени через rdtsc и timespec_get
-
 	return logger;
 }
 
-void emulator_logger_set_emulator(emulator_t* _emulator) {
-	if (!_emulator) return;
+static uint64 tsc_in_s = 0;
 
-	emulator = _emulator;
-}
+static bool first = true;
 
 // Log any emulator message to file and terminal, 
 void emulator_log(bool mirror_stdout, log_severity_e severity, const char* format, ...) {
@@ -56,6 +58,26 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 		severity < min_log_severity) return;
 	
 	if (!cur) return;
+
+	if (first) {
+		uint64 start = emulator_read_tsc();
+
+		#if defined(IS_UNIX)
+		usleep(100 * 1000);
+		#elif defined(IS_WIN)
+		Sleep(100);
+		#endif
+
+		tsc_in_s = (emulator_read_tsc() - start) * 10;
+
+		first = false;
+	}
+
+	float ticks = (float)(emulator_read_tsc()) - (float)(cur->start_tsc);
+
+	if (tsc_in_s > 0) {
+		ticks /= (float)(tsc_in_s);
+	}
 
 	#ifdef EMULATOR_SDL_USING
 	mirror_stdout = true;
@@ -93,8 +115,6 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 
 	_size_t severity_index = MIN(severities_cnt, severity);
 
-	uint64 ticks = emulator ? emulator->ticks : 0;
-
 	size_t msg_len = vsnprintf(null, 0, format, args2) + 1;
 
 	if (!cur->msg || cur->msg_size < msg_len) {
@@ -120,7 +140,7 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 
 	if (cur->log_file) {
 		if (cur->repeated_cnt == 0) {
-			fprintf(cur->log_file, "[%llu][%s] %s\n", ticks, severities_name[severity_index], cur->msg);
+			fprintf(cur->log_file, "[%f][%s] %s\n", ticks, severities_name[severity_index], cur->msg);
 		}
 
 		if (severity >= LOG_SEVERITY_WARNING) fflush(cur->log_file);
@@ -130,7 +150,7 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 		severity >= min_log_severity_showing && 
 		severity < max_log_severity_showing) {
 		if (cur->repeated_cnt == 0) {
-			printf(default_style "\n\r[%llu][%s]%s %s" default_style, ticks, severities_name[severity_index], severities_color[severity_index], cur->msg);
+			printf(default_style "\n\r[%f][%s]%s %s" default_style, ticks, severities_name[severity_index], severities_color[severity_index], cur->msg);
 		}
 		
 		else {
@@ -159,8 +179,6 @@ void free_emulator_logger(logger_t* logger) {
 
 		return;
 	}
-
-	emulator = nullptr;
 
 	printf("\n\rLogger deinitializing...\n\r");
 

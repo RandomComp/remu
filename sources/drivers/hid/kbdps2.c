@@ -6,11 +6,13 @@
 
 #include "std.h"
 
+#include "drivers/video/vga.h"
+
 #include "builtins/builtins.h"
 
 #include "builtins/string.h"
 
-#include "drivers/memory/memory.h"
+#include "drivers/io.h"
 
 #include "math/math.h"
 
@@ -80,7 +82,7 @@ static byte shift(byte c) {
 	if (isalpha(c))
 		return upper(c);
 
-	const c_str shitftable_syms = "1234567880-=[];'`/,.";
+	const c_str shitftable_syms = "1234567880-=[]\\;'`/,.";
 
 	bool is_c_shiftable = false;
 
@@ -107,6 +109,7 @@ static byte shift(byte c) {
 		['='] = '+',
 		['['] = '{',
 		[']'] = '}',
+		['\\'] = '|',
 		[';'] = ':',
 		['\''] = '"',
 		['`'] = '~',
@@ -216,31 +219,24 @@ void kbdps2_init() {
 	IDTIRQInstallHandler(1, kbd_handler);
 }
 
-static bool shifted = false;
+static bool capslocked = false, shifted = false;
 
 byte getch() {
 	if (!updated_key) return '\0';
 
 	byte c = '\0';
 
-	if (updated_key == SCANCODE_CAPSLOCK &&
-		(updated_key_state == KEY_STATE_RELEASED)) {
-		shifted = !shifted; return '\0';
-	}
-
-	else if (updated_key == SCANCODE_LEFT_SHIFT) {
-		if (updated_key_state == KEY_STATE_PRESSED) {
-			shifted = true; return '\0';
+	if (extended) {
+		while (updated_key == c) {
+			#ifdef _EMULATOR
+			halt();
+			#endif
 		}
 
-		else if (updated_key_state == KEY_STATE_RELEASED) {
-			shifted = false; return '\0';
-		}
-	}
+		extended = false;
 
-	else if ((updated_key_state != KEY_STATE_NULL) &&
-		(updated_key_state != KEY_STATE_RELEASED)) {
-		if (extended) {
+		if ((updated_key_state != KEY_STATE_NULL) &&
+			(updated_key_state != KEY_STATE_RELEASED)) {
 			if (updated_key == EXT_SCANCODE_ARROW_UP) {
 				c = '\x18';
 			}
@@ -256,18 +252,43 @@ byte getch() {
 			else if (updated_key == EXT_SCANCODE_ARROW_LEFT) {
 				c = '\x1B';
 			}
-
-			extended = false;
 		}
 
-		else c = scancode_to_c[updated_key];
+		extended = false;
+
+		key_states[updated_key] = KEY_STATE_NULL;
+
+		updated_key = 0;
+
+		return c;
+	}
+
+	if (updated_key == SCANCODE_CAPSLOCK &&
+		(updated_key_state == KEY_STATE_RELEASED)) {
+		capslocked = !capslocked; return '\0';
+	}
+
+	else if (updated_key == SCANCODE_LEFT_SHIFT) {
+		if (updated_key_state == KEY_STATE_PRESSED || 
+			updated_key_state == KEY_STATE_HOLDED) {
+			shifted = true; return '\0';
+		}
+
+		else if (updated_key_state == KEY_STATE_RELEASED) {
+			shifted = false; return '\0';
+		}
+	}
+
+	else if ((updated_key_state != KEY_STATE_NULL) &&
+		(updated_key_state != KEY_STATE_RELEASED)) {
+		c = scancode_to_c[updated_key];
 	}
 
 	key_states[updated_key] = KEY_STATE_NULL;
 
 	updated_key = 0;
 
-	return shifted ? shift(c) : c;
+	return (shifted || capslocked) ? shift(c) : c;
 }
 
 size_t getstr(bool show, byte* buf, size_t buf_size) {
@@ -294,8 +315,36 @@ size_t getstr(bool show, byte* buf, size_t buf_size) {
 
 		else if (c == '\b') {
 			if (index >= 1) {
-				index -= 1; buf[index] = ' ';
+				index -= 1;
+
+				size_t last_i = strlen(buf) - 1;
+
+				if (index == last_i) {
+					buf[index] = ' ';
+				}
+
+				else for (size_t i = index; i < last_i; i++) {
+					buf[i] = buf[i + 1];
+				}
+
+				buf[last_i] = '\0';
 			}
+		}
+
+		else if (c == '\x1A') {
+			index = MIN(index + 1, strlen(buf));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\x1B') {
+			index = MAX(0, MIN(index - 1, strlen(buf)));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
 		}
 
 		else {
@@ -305,6 +354,7 @@ size_t getstr(bool show, byte* buf, size_t buf_size) {
 		}
 
 		set_cursor_pos(cur_x, cur_y);
+		crt_set_cursor_pos(cur_x, cur_y);
 		clear_line();
 		kprint(buf);
 	}
@@ -314,7 +364,191 @@ size_t getstr(bool show, byte* buf, size_t buf_size) {
 	return index;
 }
 
-size_t getstr_hist(bool show, byte* buf, size_t buf_size, byte history[][64], ssize_t* command_index, size_t history_len) {
+#include "drivers/memory/memory.h"
+
+static byte inputed_buf[64] = { 0 };
+
+byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t command_index, size_t history_size) {
+	ssize_t index = 0;
+
+	ssize_t cur_x = 0, cur_y = 0;
+		
+	get_cursor_pos(&cur_x, &cur_y);
+
+	byte* buf = history[command_index];
+
+	memset(buf, 0, 64);
+
+	size_t inputed_size = 0;
+
+	bool cur_is_inputed = true;
+
+	while (index < 64) {
+		byte c = 0;
+
+		while (!c) {
+			c = getch();
+
+			halt();
+		}
+
+		if (c == '\x18') {
+			bool ok = false;
+
+			for (ssize_t i = command_index - 1; i >= 0; i--) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; ok = true; break;
+				}
+			}
+
+			size_t buf_len = strlen(buf);
+
+			if (ok) {
+				if (cur_is_inputed) {
+					inputed_size = buf_len;
+
+					memset(inputed_buf, 0, 64);
+
+					memcpy(inputed_buf, buf, buf_len);
+
+					cur_is_inputed = true;
+				}
+
+				memcpy(buf, history[command_index], 64);
+					
+				index = strlen(buf);
+
+				cur_is_inputed = false;
+			}
+		}
+
+		else if (c == '\x19') {
+			size_t history_len = 0;
+
+			for (ssize_t i = history_size - 1; i >= 0; i--) {
+				if (strlen(history[i]) != 0) {
+					history_len++;
+				}
+			}
+
+			bool ok = false;
+
+			for (ssize_t i = command_index + 1; i < history_size; i++) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; ok = true; break;
+				}
+			}
+
+			size_t buf_len = strlen(buf);
+
+			if (!ok || command_index >= history_len) {
+				// kprint("\n\r"); print_hex(inputed, 0, 20);
+
+				buf = inputed_buf;
+				
+				index = MIN(64, inputed_size);
+
+				command_index = history_size;
+			}
+
+			else {
+				if (cur_is_inputed) {
+					inputed_size = buf_len;
+
+					memset(inputed_buf, 0, 64);
+
+					memcpy(inputed_buf, buf, buf_len);
+
+					cur_is_inputed = true;
+				}
+
+				buf = history[command_index];
+				
+				index = strlen(buf);
+
+				cur_is_inputed = false;
+			}
+		}
+
+		else if (c == '\x1A') {
+			index = MIN(index + 1, strlen(buf));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\x1B') {
+			index = MAX(0, MIN(index - 1, strlen(buf)));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\r') {
+			index = strlen(buf);
+
+			break;
+		}
+
+		else if (c == '\b') {
+			if (index >= 1) {
+				index -= 1;
+
+				size_t last_i = strlen(buf) - 1;
+
+				if (index == last_i) {
+					buf[index] = ' ';
+				}
+
+				else for (size_t i = index; i < last_i; i++) {
+					buf[i] = buf[i + 1];
+				}
+
+				buf[last_i] = '\0';
+			}
+
+			cur_is_inputed = true;
+		}
+
+		else {
+			if (index < strlen(buf)) {
+				byte temp_buf[512] = { 0 };
+
+				memcpy(temp_buf, buf + index, strlen(buf) - index);
+
+				for (size_t i = index; i < strlen(buf); i++) {
+					buf[i + 1] = temp_buf[i - index];
+				}
+			}
+
+			buf[index] = c;
+			
+			index += 1;
+
+			cur_is_inputed = true;
+		}
+
+		set_cursor_pos(cur_x, cur_y);
+		crt_set_cursor_pos(cur_x + index, cur_y);
+		clear_line();
+		kprint(buf);
+	}
+
+	// if (inputed) {
+	// 	kfree(inputed); inputed = nullptr;
+	// }
+
+	kprint("\n");
+
+	if (_inputed_size)
+		*_inputed_size = index;
+
+	return buf;
+}
+
+size_t getstr_hist_with_auto_add_on(bool show, byte* buf, size_t buf_size, byte history[][64], ssize_t command_index, size_t history_len) {
 	ssize_t index = 0;
 
 	ssize_t cur_x = 0, cur_y = 0;
@@ -333,65 +567,87 @@ size_t getstr_hist(bool show, byte* buf, size_t buf_size, byte history[][64], ss
 		}
 
 		if (c == '\x18') {
-			*command_index = *command_index - 1;
+			for (ssize_t i = (command_index) - 1; i >= 0; i--) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; break;
+				}
+			}
 
-			while ((*command_index) < 0)
-				*command_index += history_len;
-
-			memcpy(buf, history[*command_index], buf_size);
+			memcpy(buf, history[command_index], buf_size);
 				
 			index = strlen(buf);
-				
-			set_cursor_pos(cur_x, cur_y);
-			clear_line();
-			kprintf("%s [hist: %i/%i]", buf, *command_index, history_len);
-
-			continue;
 		}
 
 		else if (c == '\x19') {
-			*command_index = (*command_index + 1) % history_len;
+			for (ssize_t i = (command_index) + 1; i < history_len; i++) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; break;
+				}
+			}
 
-			memcpy(buf, history[*command_index], buf_size);
+			memcpy(buf, history[command_index], buf_size);
 			
 			index = strlen(buf);
-			
-			set_cursor_pos(cur_x, cur_y);
-			clear_line();
-			kprintf("%s [hist: %i/%i]", buf, *command_index, history_len);
-			
-			continue;
 		}
 
 		else if (c == '\x1A') {
 			index = MIN(index + 1, strlen(buf));
 			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
 			continue;
 		}
 
 		else if (c == '\x1B') {
-			index = MIN(index - 1, strlen(buf));
+			index = MAX(0, MIN(index - 1, strlen(buf)));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
 			
 			continue;
 		}
 
 		else if (c == '\r') {
-			buf[index++] = '\0'; break;
+			index = strlen(buf);
+
+			break;
 		}
 
 		else if (c == '\b') {
 			if (index >= 1) {
-				index -= 1; buf[index] = ' ';
+				index -= 1;
+
+				size_t last_i = strlen(buf) - 1;
+
+				if (index == last_i) {
+					buf[index] = ' ';
+				}
+
+				else for (size_t i = index; i < last_i; i++) {
+					buf[i] = buf[i + 1];
+				}
+
+				buf[last_i] = '\0';
 			}
 		}
 
 		else {
+			if (index < strlen(buf)) {
+				byte temp_buf[512] = { 0 };
+
+				memcpy(temp_buf, buf + index, strlen(buf) - index);
+
+				for (size_t i = index; i < strlen(buf); i++) {
+					buf[i + 1] = temp_buf[i - index];
+				}
+			}
+
 			buf[index] = c;
 			
 			index += 1;
 		}
 
 		set_cursor_pos(cur_x, cur_y);
+		crt_set_cursor_pos(cur_x + index, cur_y);
 		clear_line();
 		kprint(buf);
 	}

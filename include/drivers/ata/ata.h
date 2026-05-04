@@ -56,6 +56,4 @@ byte* ata_get_error();
 
 uint64 ata_read_size(byte drive);
 
-byte ata_read_byte(byte drive, uint64 byte);
-
 #endif

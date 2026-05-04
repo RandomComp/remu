@@ -37,13 +37,13 @@ typedef struct tick_timer_t {
 	tick_timer_handler_t handler;
 } tick_timer_t;
 
-#define FRAMETIME_NS (1000 * 1000 * 20)
+#define FRAMETIME_NS (1000 * 1000 * 10)
 
-#define HALTED_FRAMETIME_NS (1000 * 1000 * 20)
+#define HALTED_FRAMETIME_NS (1000 * 1000 * 10)
 
 #define TICK_TIMERS_SIZE_STEP (4)
 
-#define EMULATOR_VERSION_STR "0.3.1"
+#define EMULATOR_VERSION_STR "0.3.2"
 
 #define EMULATOR_VERSION_FULL_STR EMULATOR_VERSION_STR " (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " %i.%i " PLATFORM_ARCH
 

@@ -1,9 +1,9 @@
 #include "drivers/video/vga.h"
 
-#include "drivers/memory/memory.h"
+#include "drivers/io.h"
 
 void crt_set_cursor_pos(size_t x, size_t y) {
-	size_t cursor_pos = (y * COLUMNS) + x;
+	size_t cursor_pos = (y * VGA_COLUMNS) + x;
 
 	out8(0x3D4, 0xE);
 

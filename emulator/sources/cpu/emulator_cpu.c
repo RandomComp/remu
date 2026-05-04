@@ -56,12 +56,12 @@ cpu_t* init_cpu(uint64 frametime_ns, uint64 halted_frametime_ns) {
 
 	memset(cpu, 0, sizeof(cpu_t));
 
-	cpu->pic = init_emulator_pic();
 	cpu->halted = false;
 	cpu->frametime_ns = frametime_ns;
 	cpu->halted_frametime_ns = halted_frametime_ns;
 	cpu->tsc_start = emulator_read_tsc();
-
+	cpu->pic = init_emulator_pic(cpu);
+	
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setup CPU signals... (SIGHUP, SIGINT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGSEGV, SIGTERM, SIGSTKFLT, SIGTSTP, SIGXCPU, SIGXFSZ, SIGWINCH)");
 	
 	cpu_setup_signals();

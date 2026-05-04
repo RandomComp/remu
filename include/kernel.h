@@ -16,6 +16,10 @@ typedef struct __init_kernel_args_t {
 
 	void (*__emulator_wait_halt)(void);
 
+	void (*__emulator_sti)(void);
+
+	void (*__emulator_cli)(void);
+
 	uint64 (*__emulator_start_tsc)(void);
 
 	void (*__emulator_idt_flush)(idt_ptr_t* ptr);

@@ -34,6 +34,8 @@
 
 #define CLAMP(x, min_value, max_value) (MAX(MIN(x, max_value), min_value))
 
+// TODO: Разделить emulator_vga.c на emulator_vga_screen.c и emulator_vga_gpu.c
+
 const c_str cp437[] = {
 	" ", "☺", "☻", "♥", "♦", "♣", 
 	"♠", "•", "◘", "○", "◙", "♂", 
@@ -69,9 +71,9 @@ const c_str cp437[] = {
 	"»", "░", "▒", "▓", "│", "┤", 
 	"╡", "╢", "╖", "╕", "╣", "║", 
 	"╗", "╝", "╜", "╛", "┐", "└", 
-	"┴", "┬", "├", "─", "┼", "╞", 
+	"┴", "┬", "├", "─", "┼", "╞",
 	"╟", "╚", "╔", "╩", "╦", "╠", 
-	"═", "╬", "╧", "", "╨", "╤", 
+	"═", "╬", "╧", "╨", "╤", 
 	"╥", "╙", "╘", "╒", "╓", "╫", 
 	"╪", "┘", "┌", "█", "▄", "▌", 
 	"▐", "▀", "α", "ß", "Γ", "π", 
@@ -93,7 +95,7 @@ static _size_t attrib_flip_trigger() {
 
 	attrib_flip_trigger_flag = true;
 
-	emulator_log(false, LOG_SEVERITY_INFO, "Write addr/data flag triggered (0x3DA) for 0x3C0 in VGA text screen");
+	emulator_log(false, LOG_SEVERITY_TRACE, "Write addr/data flag triggered (0x3DA) for 0x3C0 in VGA text screen");
 
 	return 0;
 }
@@ -108,7 +110,7 @@ static void attrib_reg_write(_size_t data) {
 
 		attrib_flip_trigger_flag = false;
 
-		emulator_log(false, LOG_SEVERITY_INFO, "Writed %llx as register to 0x3C0 (VGA text screen)\r", attrib_reg);
+		emulator_log(false, LOG_SEVERITY_TRACE, "Writed %llx as register to 0x3C0 (VGA text screen)\r", attrib_reg);
 	}
 
 	else if (attrib_reg & 0x10) {
@@ -125,7 +127,7 @@ static void attrib_reg_write(_size_t data) {
 		
 		attrib_reg = 0;
 
-		emulator_log(false, LOG_SEVERITY_INFO, "Writed %llx as data to 0x3C0 (VGA text screen)\r", data);
+		emulator_log(false, LOG_SEVERITY_TRACE, "Writed %llx as data to 0x3C0 (VGA text screen)\r", data);
 	}
 }
 
@@ -135,7 +137,7 @@ static _size_t attrib_reg_read() {
 	if (!attrib_flip_trigger_flag && attrib_reg == 0x10) {
 		attrib_reg = 0;
 
-		emulator_log(false, LOG_SEVERITY_INFO, "VGA text screen mode register readed (0x3C1)");
+		emulator_log(false, LOG_SEVERITY_TRACE, "VGA text screen mode register readed (0x3C1)");
 
 		return cur->mode_reg;
 	}
@@ -408,37 +410,42 @@ void handle_copy_selected() {
 	if (!cur) return;
 
 	size_t start = MIN(inverse_start, inverse_end);
-
 	size_t end = MAX(inverse_start, inverse_end);
 	
-	size_t columns = start % cur->width;
-	
-	size_t rows = start / cur->width;
-	
-	size_t columns_end = end % cur->width;
-	
-	size_t rows_end = end / cur->width;
+	size_t columns_start = start % cur->width;
+	size_t rows_start = MIN(cur->height - 1, start / cur->width);
 
-	char buf[80 * 25] = { 0 };
+	size_t columns_end = end % cur->width;
+	size_t rows_end = MIN(cur->height - 1, end / cur->width);
+
+	char* buf = malloc(cur->width * cur->height * 3);
+
+	memset(buf, 0, cur->width * cur->height * 3);
 
 	size_t text_to_copy_index = 0;
 
-	for (size_t j = rows; j <= rows_end; j++) {
-		size_t index = cur->width - 1;
+	for (size_t j = rows_start; j <= rows_end; j++) {
+		size_t index = cur->width;
 
-		for (; index > columns; index--) {
+		bool ok = false;
+
+		for (; index >= columns_start; index--) {
 			byte b = cur->vidmem[(j * cur->width) + index] & 0xFF;
 
 			if ((b != ' ') && (b != '\0')) {
+				ok = true;
+				
 				break;
 			}
 		}
 
-		bool is_first_j = j == rows;
+		if (!ok) break;
+
+		bool is_first_j = j == rows_start;
 
 		bool is_last_j = j == rows_end;
 
-		for (size_t i = (is_first_j ? columns : 0); i <= (is_last_j ? columns_end : index); i++) {
+		for (size_t i = (is_first_j ? columns_start : 0); i < (is_last_j ? columns_end : index); i++) {
 			c_str cp437_c = cp437[cur->vidmem[(j * cur->width) + i] & 0xFF];
 
 			size_t cp437_c_len = strlen(cp437_c);
@@ -452,10 +459,8 @@ void handle_copy_selected() {
 	}
 
 	SDL_SetClipboardText(buf);
-}
 
-void handle_paste_selected() {
-	if (!cur) return;
+	free(buf);
 }
 
 void handle_mouse_move(size_t x, size_t y, int win_x, int win_y) {
@@ -571,7 +576,7 @@ const uint32 vga_color_to_rgb[] = {
 	[COLOR_RED] = 				0x800000,
 	[COLOR_MAGENTA] = 			0x800080,
 	[COLOR_BROWN] = 			0xAA5000,
-	[COLOR_WHITE] = 			0xC0C0C0,
+	[COLOR_WHITE] = 			0x808080,
 	[COLOR_BRIGHT_BLACK] = 		0x404040,
 	[COLOR_BRIGHT_BLUE] = 		0x0000FF,
 	[COLOR_BRIGHT_LIME] = 		0x00FF00,
@@ -590,7 +595,7 @@ const uint32 inversed_vga_color_to_rgb[] = {
 	[COLOR_RED] = 				0x7FFFFF,
 	[COLOR_MAGENTA] = 			0x7FFF7F,
 	[COLOR_BROWN] = 			0x55AFFF,
-	[COLOR_WHITE] = 			0x3F3F3F,
+	[COLOR_WHITE] = 			0x808080,
 	[COLOR_BRIGHT_BLACK] = 		0xC0C0C0,
 	[COLOR_BRIGHT_BLUE] = 		0xFFFF00,
 	[COLOR_BRIGHT_LIME] = 		0xFF00FF,
@@ -682,8 +687,6 @@ void draw_vga_text_screen_cli(vga_text_screen_t* screen) {
 
 	printf(default_screen_color bold white_fg);
 
-	bool after_cursor = false;
-
 	for (size_t i = 0; i < height; i++) {
 		bool is_last_i = i == (height - 1);
 
@@ -698,7 +701,7 @@ void draw_vga_text_screen_cli(vga_text_screen_t* screen) {
 
 			if (ch_pos == cur->cursor_pos &&
 				blinking_text_visible) {
-				printf(underline); after_cursor = true;
+				printf(underline);
 			}
 
 			uint16 ch_and_style = screen->vidmem[ch_pos];

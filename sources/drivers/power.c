@@ -1,6 +1,6 @@
 #include "types.h"
 
-#include "drivers/memory/memory.h"
+#include "drivers/io.h"
 
 #include "builtins/builtins.h"
 
@@ -23,7 +23,7 @@ void poweroff(void) {
 
 	out16(0x600, 0x34); // for cloud hypervisor
 
-	asm volatile("cli");
+	cli();
 
 	for (;;) halt();
 }
@@ -36,7 +36,7 @@ void reboot(void) {
 
 	out8(0x64, 0xFE);
 
-	asm volatile("cli");
+	cli();
 
 	for (;;) halt();
 }

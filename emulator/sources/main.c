@@ -147,6 +147,10 @@ typedef struct __init_kernel_args_t {
 
 	void (*__emulator_wait_halt)(void);
 
+	void (*__emulator_sti)(void);
+
+	void (*__emulator_cli)(void);
+
 	uint64 (*__emulator_start_tsc)(void);
 
 	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
@@ -172,6 +176,18 @@ static void wait_halt() {
 	usleep(itval_ns / 1000);
 
 	cpu_need_to_halt = true;
+}
+
+static void set_sti(void) {
+	if (!emulator || !emulator->cpu || !emulator->cpu->pic) return;
+
+	set_sti_pic(emulator->cpu->pic);
+}
+
+static void set_cli(void) {
+	if (!emulator || !emulator->cpu || !emulator->cpu->pic) return;
+
+	set_cli_pic(emulator->cpu->pic);
 }
 
 static uint64 start_tsc() {
@@ -327,6 +343,8 @@ int main(int argc, const char** argv) {
 	kernel_args.__emulator_port_in = port_in;
 	kernel_args.__emulator_port_out = port_out;
 	kernel_args.__emulator_wait_halt = wait_halt;
+	kernel_args.__emulator_sti = set_sti;
+	kernel_args.__emulator_cli = set_cli;
 	kernel_args.__emulator_start_tsc = start_tsc;
 	kernel_args.__emulator_idt_flush = idt_flush_emulator;
 	kernel_args.__emulator_kernel_report = report;
@@ -344,8 +362,6 @@ int main(int argc, const char** argv) {
 
 		return 1;
 	}
-
-	emulator_logger_set_emulator(emulator);
 
 	timespec_get(&ts, TIME_UTC);
 
@@ -445,13 +461,7 @@ int main(int argc, const char** argv) {
 			
 		itval_ns = cpu_get_itval_ns(emulator->cpu);
 
-		struct timespec spec = { 0 };
-
-		spec.tv_nsec = cpu_get_itval_ns(emulator->cpu);
-
-		nanosleep(&spec, nullptr);
-
-		// SDL_Delay(itval_ns / 1000000);
+		SDL_Delay((uint32)(itval_ns / 1000000));
 	}
 	#else
 	emulator_setup_tick_timer(emulator, handle_keys_cli, 10);
@@ -460,11 +470,13 @@ int main(int argc, const char** argv) {
 		if (!emulator->is_hardware_reseting)
 			emulator_update_all(emulator);
 
-		struct timespec spec = { 0 };
+		if (!(emulator->cpu->halted) && cpu_need_to_halt) {
+			set_halt(emulator->cpu);
+		}
+			
+		itval_ns = cpu_get_itval_ns(emulator->cpu);
 
-		spec.tv_nsec = cpu_get_itval_ns(emulator->cpu);
-
-		nanosleep(&spec, nullptr);
+		usleep(itval_ns / 1000);
 	}
 	#endif
 	

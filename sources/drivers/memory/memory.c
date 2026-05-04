@@ -4,6 +4,10 @@
 
 #include "multiboot.h"
 
+#include "builtins/string.h"
+
+#include "math/math.h"
+
 #ifdef __EMULATOR__
 #include "kernel.h"
 
@@ -35,74 +39,109 @@ size_t get_ram_size(multiboot_info_t* multiboot) {
 	return result;
 }
 
-uint8 in8(uint16 port) {
-	#ifndef __EMULATOR__
-	uint8 data = 0;
+static byte ram_arr[0x2000] = { 0 };
 
-	asm volatile ("inb %%dx, %%al" :"=a" (data) : "d" (port));
+static byte ram_map[0x2000 / 8] = { 0 };
 
-	return data;
-	#else
-	if (kernel_args.__emulator_port_in)
-		return (uint8)kernel_args.__emulator_port_in(port);
-	#endif
+#define RAM_MAP_ENABLE_BIT(bit_index) (ram_map[bit_index >> 3] |= 1ULL << (bit_index & 0x07))
+#define RAM_MAP_DISABLE_BIT(bit_index) (ram_map[bit_index >> 3] &= ~(1ULL << (bit_index & 0x07)))
 
-	return 0;
+static ssize_t found_in_bitmap_best_fit(size_t size, byte* bitmap, size_t bitmap_size);
+static ssize_t found_in_bitmap_fast_fit(byte* bitmap, size_t bitmap_size);
+
+void init_ram(ssize_t size) {
+	size = MIN(0x2000, size);
+
+	size = size < 0 ? 0x2000 : size;
+
+	memset(ram_arr, 0, size);
 }
 
-uint16 in16(uint16 port) {
-	#ifndef __EMULATOR__
-	uint16 data = 0;
+typedef struct kmalloc_header_t {
+	size_t mem_size;
+} kmalloc_header_t;
 
-	asm volatile ("inw %%dx, %%ax" : "=a" (data) : "d" (port));
+void* kmalloc(size_t size) {
+	size = align_up(size, 8);
 
-	return data;
-	#else
-	if (kernel_args.__emulator_port_in)
-		return (uint16)kernel_args.__emulator_port_in(port);
-	#endif
+	size_t result_addr = found_in_bitmap_best_fit(size, ram_map, sizeof(ram_map));
 
-	return 0;
+	for (size_t i = 0; i < align_up(size, 8) / 8; i++) {
+		ram_map[result_addr + i] = 0xFF;
+	}
+
+	for (size_t i = align_up(size, 8) / 8; i < size; i++) {
+		RAM_MAP_ENABLE_BIT(result_addr + i);
+	}
+
+	void* result = ram_arr + result_addr;
+
+	*((kmalloc_header_t*)result) = (kmalloc_header_t){ .mem_size = size };
+
+	return result + sizeof(kmalloc_header_t);
 }
 
-uint32 in32(uint16 port) {
-	#ifndef __EMULATOR__
-	uint32 data = 0;
+void kfree(void* mem) {
+	kmalloc_header_t* mem_header = (kmalloc_header_t*)((byte*)mem - sizeof(kmalloc_header_t));
 
-	asm volatile ("inl %%dx, %%eax" : "=a" (data) : "d" (port));
+	size_t result_addr = (uintmax_t)mem_header - (uintmax_t)ram_arr;
 
-	return data;
-	#else
-	if (kernel_args.__emulator_port_in)
-		return (uint32)kernel_args.__emulator_port_in(port);
-	#endif
+	for (size_t i = 0; i < align_up(mem_header->mem_size, 8) / 8; i++) {
+		ram_map[result_addr + i] = 0;
+	}
 
-	return 0;
+	for (size_t i = align_up(mem_header->mem_size, 8) / 8; i < mem_header->mem_size; i++) {
+		RAM_MAP_DISABLE_BIT(result_addr + i);
+	}
 }
 
-void out8(uint16 port, uint8 data) {
-	#ifndef __EMULATOR__
-	asm volatile ("outb %%al, %%dx" : : "a" (data), "d" (port));
-	#else
-	if (kernel_args.__emulator_port_out)
-		kernel_args.__emulator_port_out(port, (size_t)data);
-	#endif
+static ssize_t found_in_bitmap_fast_fit(byte* bitmap, size_t bitmap_size) {
+	size_t start = 0;
+
+	bool ok = false;
+
+	for (size_t i = 0; i < bitmap_size * 8; i++) {
+		byte map_byte = bitmap[i / 8];
+
+		if (map_byte >= 0xFF) continue;
+
+		byte sector_map_bit = map_byte & (1 << (i % 8));
+
+		if (!sector_map_bit) {
+			ok = true; break;
+		}
+	}
+
+	return ok ? start : -1;
 }
 
-void out16(uint16 port, uint16 data) {
-	#ifndef __EMULATOR__
-	asm volatile ("outw %%ax, %%dx" : : "a" (data), "d" (port));
-	#else
-	if (kernel_args.__emulator_port_out)
-		kernel_args.__emulator_port_out(port, (size_t)data);
-	#endif
-}
+static ssize_t found_in_bitmap_best_fit(size_t size, byte* bitmap, size_t bitmap_size) {
+	size_t start = 0; size_t available_size = 0;
 
-void out32(uint16 port, uint32 data) {
-	#ifndef __EMULATOR__
-	asm volatile ("outl %%eax, %%dx" : : "a" (data), "d" (port));
-	#else
-	if (kernel_args.__emulator_port_out)
-		kernel_args.__emulator_port_out(port, (size_t)data);
-	#endif
+	bool ok = false;
+
+	for (size_t i = 0; i < bitmap_size * 8; i++) {
+		byte map_byte = bitmap[i / 8];
+
+		if (map_byte >= 0xFF) continue;
+
+		byte sector_map_bit = map_byte & (1 << (i % 8));
+
+		if (!sector_map_bit) {
+			if (start == 0)
+				start = i;
+			
+			available_size++;
+		}
+
+		else {
+			start = 0; available_size = 0;
+		}
+
+		if (available_size >= size) {
+			ok = true; break;
+		}
+	}
+
+	return ok ? start : -1;
 }

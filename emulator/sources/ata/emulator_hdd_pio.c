@@ -55,11 +55,11 @@ static void select_drive(_size_t data) {
 
 	// CHS and floppy is now unsupported
 
-	bool is_master = data & 0x20;
+	bool is_master = data & 0x10;
 
 	if (!is_master) return;
 
-	master_selected = is_master;
+	master_selected = !is_master;
 
 	if (master_selected) {
 		emulator_log(false, LOG_SEVERITY_TRACE, "HDD ATA PIO master selected");
@@ -211,17 +211,14 @@ static void ata_command(_size_t command) {
 		
 		buf[83] &= ~0b10000000000; // LBA48 support bit disabling
 
-		if (master_selected) {
-			buf[60] = cur->sectors;
-
-			buf[61] = (cur->sectors) >> 16;
-		}
+		buf[60] = (cur->sectors) & 0xFFFF;
+		buf[61] = (cur->sectors >> 16) & 0xFFFF;
 
 		_size_t kb = cur->sectors / 2;
 
-		byte temp_buf[40] = { 0 };
+		char temp_buf[40] = { 0 };
 
-		int writed_cnt = snprintf(temp_buf, 20, "EMUA3200%.3zuKB", kb);
+		snprintf(temp_buf, 40, "EMUA3200%.3lluKB", kb);
 
 		for (_size_t i = 0; i < 20; i++) {
 			buf[27 + i] = temp_buf[(i * 2) + 1] & 0xFF;
@@ -231,7 +228,7 @@ static void ata_command(_size_t command) {
 
 		memset(temp_buf, 0, 20);
 		
-		snprintf(temp_buf, 20, "%.3zuKB", kb);
+		snprintf(temp_buf, 20, "%.3lluKB", kb);
 
 		for (_size_t i = 0; i < 10; i++) {
 			buf[10 + i] = temp_buf[(i * 2) + 1] & 0xFF;

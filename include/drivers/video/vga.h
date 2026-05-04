@@ -3,11 +3,11 @@
 
 #include "types.h"
 
-#define COLUMNS 80
+#define VGA_COLUMNS 80
 
-#define ROWS 25
+#define VGA_ROWS 25
 
-#define vidmem_size (COLUMNS * ROWS)
+#define VGA_VIDMEM_SIZE (VGA_COLUMNS * VGA_ROWS)
 
 void crt_set_cursor_pos(size_t x, size_t y);
 

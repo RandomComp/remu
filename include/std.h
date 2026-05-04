@@ -3,9 +3,9 @@
 
 #include "types.h"
 
-#define STD_COLUMNS 80
+#define COLUMNS 80
 
-#define STD_ROWS 25
+#define ROWS 25
 
 void init_std(uint16* _vidmem);
 
@@ -16,16 +16,18 @@ void putch(byte c);
 void clear_line();
 
 size_t kprint(const c_str str);
-size_t sprint(char *s, const c_str str);
+size_t sprint(byte *s, const c_str str);
 
-size_t vsprintf(char* s, const c_str format, va_list list);
+size_t vsprintf(byte* s, const c_str format, va_list list);
 
-size_t sprintf(char* s, const c_str format, ...);
+size_t sprintf(byte* s, const c_str format, ...);
 
 size_t kprintf(const c_str format, ...);
 
-size_t get_num_digits(ssize_t num, size_t base);
+uintmax_t get_num_digits(uintmax_t num, uintmax_t base, bool signable);
 
+bool isnum(byte c);
+bool isalnum(byte c);
 bool isalpha(byte c);
 bool isascii(byte c);
 bool isprintable(byte c);
@@ -44,11 +46,11 @@ ErrorCode parse_hex(byte* result, size_t res_size, const c_str str);
 
 uintmax_t parse_num(const c_str str, uintmax_t radix);
 
-void sprint_hex(char* s, byte* num, size_t size);
-void print_hex(byte* num, size_t size);
+void snprint_hex(byte* s, ssize_t max_size, byte* num, size_t size);
+void print_hex(byte* num, size_t offset, size_t size);
 
-size_t sprint_num(char* s, size_t num, size_t base, bool num_signed, bool always_show_sign);
-void print_num(size_t num, size_t base, bool num_signed);
+size_t snprint_num(byte* s, ssize_t max_size, size_t num, size_t radix, bool num_signed, bool always_show_sign);
+size_t print_num(uintmax_t num, uintmax_t radix, bool num_signed, bool always_show_sign);
 
 void set_cursor_pos(ssize_t x, ssize_t y);
 

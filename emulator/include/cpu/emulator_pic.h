@@ -1,5 +1,5 @@
-#ifndef _EMULATOR_IDT_H
-#define _EMULATOR_IDT_H
+#ifndef _EMULATOR_PIC_H
+#define _EMULATOR_PIC_H
 
 #include "types.h"
 
@@ -33,10 +33,15 @@ typedef struct pic_t {
 	// _size_t queue_size;
 	_size_t handler_pos;
 	
-	bool lock;
+	bool lock; bool allow_ints;
 } pic_t;
 
-pic_t* init_emulator_pic();
+#include "cpu/emulator_cpu.h"
+
+pic_t* init_emulator_pic(cpu_t* cpu);
+
+void set_sti_pic(pic_t* pic);
+void set_cli_pic(pic_t* pic);
 
 void exec_all_emulator_ints(pic_t* pic);
 

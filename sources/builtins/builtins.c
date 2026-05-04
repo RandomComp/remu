@@ -16,3 +16,20 @@ void halt() {
 		kernel_args.__emulator_wait_halt();
 	#endif
 }
+
+void cli() {
+	#ifndef __EMULATOR__
+	asm volatile("cli");
+	#else
+	if (kernel_args.__emulator_cli)
+		kernel_args.__emulator_cli();
+	#endif
+}
+void sti() {
+	#ifndef __EMULATOR__
+	asm volatile("sti");
+	#else
+	if (kernel_args.__emulator_sti)
+		kernel_args.__emulator_sti();
+	#endif
+}

@@ -145,6 +145,8 @@ pic_t* init_emulator_pic(cpu_t* cpu) {
 
 	pic->lock = false;
 
+	pic->allow_ints = true;
+
 	// for (_size_t i = 0; i < 32; i++) {
 	// 	idt_table[i] = reset_handler;
 	// }
@@ -164,8 +166,24 @@ pic_t* init_emulator_pic(cpu_t* cpu) {
 	return pic;
 }
 
-void exec_all_emulator_ints(pic_t* pic) {
+void set_sti_pic(pic_t* pic) {
 	if (!pic) return;
+
+	emulator_log(true, LOG_SEVERITY_INFO, "Set allow interrupts flag...");
+
+	pic->allow_ints = true;
+}
+
+void set_cli_pic(pic_t* pic) {
+	if (!pic) return;
+
+	emulator_log(true, LOG_SEVERITY_INFO, "Clear allow interrupts flag...");
+
+	pic->allow_ints = false;
+}
+
+void exec_all_emulator_ints(pic_t* pic) {
+	if (!pic || !pic->allow_ints) return;
 
 	size_t queue_size = sizeof(pic->handler_queue) / sizeof(pic->handler_queue[0]);
 
@@ -183,7 +201,7 @@ void exec_all_emulator_ints(pic_t* pic) {
 void call_emulator_int(pic_t* _pic, byte _int) {
 	pic_t* pic = _pic;
 	
-	if (!pic) pic = cur;
+	if (!pic || !pic->allow_ints) pic = cur;
 
 	if (!pic) {
 		emulator_log(false, LOG_SEVERITY_ERROR, "No PIC instance provided to call");

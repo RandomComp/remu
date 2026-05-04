@@ -127,7 +127,7 @@ typedef int64 ssize_t;
 
 #endif
 
-typedef char* c_str;
+typedef unsigned char* c_str;
 
 typedef c_str* c_str_ptr;
 

@@ -6,7 +6,7 @@
 
 #include "std.h"
 
-#include "drivers/memory/memory.h"
+#include "drivers/io.h"
 
 #include "builtins/string.h"
 

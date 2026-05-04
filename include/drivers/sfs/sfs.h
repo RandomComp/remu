@@ -3,34 +3,45 @@
 
 #include "types.h"
 
-typedef struct PACKED sfs_file_label {
-	size_t name_len;
+#define SFS_MAX_SECTORS 64
 
-	size_t location; size_t size;
+typedef struct PACKED sfs_file_label_t {
+	size_t name_start;
 
-	/* name bytes */
+	size_t data_start;
+} sfs_file_label_t;
 
-} sfs_file_label;
+typedef struct PACKED sfs_file_sector_t {
+	byte data[512 - sizeof(size_t) - sizeof(bool)];
 
-#define SFS_TABLE_SIZE (512 / sizeof(sfs_file_label))
+	size_t next_sector; bool is_not_end;
+} sfs_file_sector_t;
 
-typedef struct PACKED sfs_file_table {
-	byte always_r;
-	byte always_d;
-	byte always_e;
-	byte always_v;
-	byte always_s;
-	byte always_f;
-	byte always_s2;
+typedef struct PACKED sfs_file_table_t {
+	byte always_rdevsfs[7]; uint16 version;
 
-	sfs_file_label labels[SFS_TABLE_SIZE];
-} sfs_file_table;
+	size_t sectors_cnt; byte sector_map[SFS_MAX_SECTORS / 8];
 
-void sfs_format(byte drive);
+	size_t labels_cnt;
 
-void sfs_create_file(byte drive, byte* name, byte* content, size_t size);
+	/* labels */
+} sfs_file_table_t;
 
-size_t sfs_read_file(byte drive, byte* file_name, byte* content);
+typedef enum sfs_error_e {
+	SFS_OK,
+	SFS_ERROR_DISK_UNAVAILABLE,
+	SFS_ERROR_EMPTY_FILENAME,
+	SFS_ERROR_FILE_EXISTS,
+	SFS_ERROR_FILE_NOT_EXISTS,
+	SFS_ERROR_INVLD_SIG,
+	SFS_ERROR_NOT_ENGH_MMRY,
+} sfs_error_e;
+
+sfs_error_e sfs_format(byte drive);
+
+sfs_error_e sfs_create_file(byte drive, const byte* name, const byte* content, size_t size);
+
+sfs_error_e sfs_read_file(byte drive, const byte* file_name, byte* content, size_t size, size_t* readed);
 
 byte* sfs_list_files(byte drive, size_t* files_cnt);
 

@@ -237,9 +237,21 @@ static bool available = false, previous_shifted = false;
 static _size_t kbdps2_read_data() {
 	if (!cur) return 0;
 
-	if (!available || read_index >= 4) return 0;
+	if (!available) {
+		return 0;
+	}
+
+	if (read_index >= sizeof(cur->pressed_key)) {
+		cur->readed_all = true;
+
+		return 0;
+	}
 	
 	byte result = cur->pressed_key[read_index];
+
+	if (result == 0) {
+		cur->readed_all = true;
+	}
 
 	read_index += 1;
 
@@ -402,14 +414,28 @@ static byte c_to_scancode[] = {
 	[' '] = 	SCANCODE_SPACE,
 };
 
-byte previous_pressed_key = '\0';
+static byte previous_pressed_key = '\0';
 
-time_t last_time = 0, cur_time = 0;
+static time_t last_time = 0, cur_time = 0;
 
 static bool pressed = true;
 
 static void send_make(byte scancode) {
 	if (!cur) return;
+
+	if (writed_cnt >= sizeof(cur->pressed_key)) {
+		available = true;
+
+		call_emulator_int(nullptr, 0x21);
+
+		while (!cur->readed_all) continue;
+
+		available = false;
+
+		writed_cnt = 0;
+
+		read_index = 0;
+	}
 
 	cur->pressed_key[writed_cnt] = scancode;
 
@@ -444,6 +470,8 @@ void handle_key_gui(byte sdl_scancode, bool is_key_released) {
 
 	read_index = 0;
 
+	cur->readed_all = false;
+
 	size_t buf_size = sizeof(cur->pressed_key);
 
 	memset(cur->pressed_key, 0, buf_size);
@@ -458,6 +486,12 @@ void handle_key_gui(byte sdl_scancode, bool is_key_released) {
 	}
 
 	available = true;
+}
+
+void handle_paste_selected() {
+	if (!cur) return;
+
+	
 }
 #endif
 
@@ -609,6 +643,8 @@ kbdps2_t* init_kbdps2(bool gui) {
 	size_t buf_size = sizeof(kbdps2->pressed_key);
 
 	memset(kbdps2->pressed_key, 0, buf_size);
+
+	kbdps2->readed_all = true;
 	
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up ports (0x60, 0x64) for PS/2 Keyboard...");
 

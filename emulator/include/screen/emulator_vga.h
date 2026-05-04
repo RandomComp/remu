@@ -50,8 +50,6 @@ void clear_vga_text_screen(vga_text_screen_t* screen);
 
 void handle_copy_selected();
 
-void handle_paste_selected();
-
 void handle_mouse_move(size_t x, size_t y, int win_x, int win_y);
 
 void handle_mouse_button(size_t x, size_t y, int win_x, int win_y, bool released);
