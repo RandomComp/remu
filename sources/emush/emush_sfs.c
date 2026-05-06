@@ -15,13 +15,13 @@
 #include "emush/emush.h"
 
 int ata_cmd(const byte** argv, size_t argc) {
-	if (argc < 1) {
+	if (argc <= 1) {
 		kprintf("%vfbrToo few arguments, needing minimal one argument: action name\n");
 
 		return -1;
 	}
 
-	const char* action = argv[0];
+	const char* action = argv[1];
 
 	uint32 sectors = 0;
 
@@ -68,8 +68,8 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 		size_t sector = 0;
 
-		if (argc == 2) {
-			sector = parse_num(argv[1], 10);
+		if (argc >= 3) {
+			parse_num(argv[argc - 1], 10, &sector, nullptr);
 		}
 	
 		ata_read_sector(buf, ATA_MASTER, sector, 1);
@@ -133,13 +133,15 @@ int ata_cmd(const byte** argv, size_t argc) {
 		return 0;
 	}
 
-	if (argc < 2) {
+	if (argc <= 2) {
 		kprintf("%vfbrToo few arguments, needing 2 argument: action name and sector\n");
 
 		return -1;
 	}
 
-	size_t sector = parse_num(argv[1], 10);
+	uintmax_t sector = 0;
+	
+	parse_num(argv[2], 10, &sector, nullptr);
 
 	byte buf[512] = { 0 };
 	
@@ -156,8 +158,8 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 		size_t buf_index = 0;
 
-		for (size_t i = 0; i < argc - 2; i++) {
-			buf_index += sprintf(buf + buf_index, "%s ", argv[i + 2]);
+		for (size_t i = 1; i < argc - 2; i++) {
+			buf_index += sprintf(buf + buf_index, "%s ", argv[i + 3]);
 		}
 
 		ata_write_sector(buf, ATA_MASTER, sector, 1);
@@ -175,13 +177,13 @@ int ata_cmd(const byte** argv, size_t argc) {
 }
 
 int sfs_cmd(const byte** argv, size_t argc) {
-	if (argc < 1) {
+	if (argc <= 1) {
 		kprintf("%vfbrToo few arguments, needed one argument: action\n");
 		
 		return -1;
 	}
 
-	const char* action = argv[0];
+	const char* action = argv[1];
 
 	if (strcmp(action, "help") == 0) {
 		kprintf("%vfbyUsage:\n");

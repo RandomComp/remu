@@ -23,8 +23,6 @@ typedef struct __init_kernel_args_t {
 	uint64 (*__emulator_start_tsc)(void);
 
 	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
-
-	void (*__emulator_kernel_report)(const c_str msg);
 } __init_kernel_args_t;
 #endif
 

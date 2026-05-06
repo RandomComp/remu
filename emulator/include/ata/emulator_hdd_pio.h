@@ -5,6 +5,8 @@
 
 #include <bits/types/FILE.h>
 
+#include "pci/emulator_pci_fwd.h"
+
 #define ATA_DATA			0x1F0
 #define ATA_ERROR_REG		0x1F1
 #define ATA_SECTOR_COUNT	0x1F2
@@ -47,6 +49,8 @@ typedef struct hdd_ata_pio_t {
 	uint16 sector_buffer[256];
 
 	FILE* master_file;
+
+	pci_device_t* pci_device;
 } hdd_ata_pio_t;
 
 hdd_ata_pio_t* init_hdd_ata_pio(_size_t sectors);

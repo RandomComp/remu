@@ -22,6 +22,7 @@ int help_cmd(const byte** argv, size_t argc) {
 		"see information about system",
 		"manipulate ata drives",
 		"manipulate sfs drives",
+		"manipulate pci devices",
 		"list current directory",
 		"creates file ",
 		"concatenate files and see",

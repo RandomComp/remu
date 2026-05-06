@@ -18,10 +18,10 @@
 
 	.long 0, 0, 0, 0, 0
 	
-	.long 0
-	.long 1024
-	.long 768
-	.long 32
+	.long 1
+	.long 80
+	.long 25
+	.long 2
 
 .set stackSize, 0x2000
 

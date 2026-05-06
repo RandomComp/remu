@@ -12,8 +12,8 @@ typedef struct emush_cmd {
 ssize_t emush_get_command_index(void);
 void emush_get_history(byte history[16][64]);
 
-int set_var(byte* var_name, byte* value);
-byte* get_var(byte* var_name);
+int set_var(const byte* var_name, const byte* value);
+byte* get_var(const byte* var_name);
 
 int emush_exec(const byte* command, size_t command_len);
 
@@ -28,5 +28,19 @@ int sfs_cmd(const byte **argv, size_t argc);
 int calc_cmd(const byte** argv, size_t argc);
 
 int time_cmd(const byte** argv, size_t argc);
+
+int set_cmd(const byte** argv, size_t argc);
+int clear_cmd(const byte** argv, size_t argc);
+int echo_cmd(const byte** argv, size_t argc);
+int history_cmd(const byte** argv, size_t argc);
+int ls_cmd(const byte** argv, size_t argc);
+int touch_cmd(const byte** argv, size_t argc);
+int cat_cmd(const byte** argv, size_t argc);
+
+int graphtest_cmd(const byte** argv, size_t argc);
+int shut_cmd(const byte** argv, size_t argc);
+int reboot_cmd(const byte** argv, size_t argc);
+
+int pci_cmd(const byte** argv, size_t argc);
 
 #endif

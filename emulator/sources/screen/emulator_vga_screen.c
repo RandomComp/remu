@@ -102,9 +102,7 @@ static byte* load_png_font(const char* file_name, size_t* w, size_t* h) {
 		uint32 pixel = pixels[i];
 
 		uint32 r = pixel & 0xFF;
-
 		uint32 g = (pixel >> 8) & 0xFF;
-
 		uint32 b = (pixel >> 16) & 0xFF;
 
 		uint32 gray = (r + g + b) / 3;
@@ -130,6 +128,8 @@ vga_text_screen_t* init_vga_text_screen(vga_text_device_t* vga_device, SDL_Textu
 vga_text_screen_t* init_vga_text_screen(vga_text_device_t* vga_device)
 #endif
 {
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA screen initializing...");
+	
 	vga_text_screen_t* screen = malloc(sizeof(vga_text_screen_t));
 
 	memset(screen, 0, sizeof(vga_text_screen_t));
@@ -168,6 +168,10 @@ vga_text_screen_t* init_vga_text_screen(vga_text_device_t* vga_device)
 
 	emulator_setup_tick_timer(nullptr, update_cur_vga_screen, 33);
 	emulator_setup_tick_timer(nullptr, text_blink_update, 500);
+
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA screen initialized");
+
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA screen clearing...");
 
 	#ifdef EMULATOR_SDL_USING
 	if (!screen->gui)
@@ -241,9 +245,9 @@ void handle_mouse_move(size_t x, size_t y, int win_x, int win_y) {
 
 	if (!selecting) return;
 
-	size_t cursor_x = (size_t)(x * 80) / win_x;
+	size_t cursor_x = (size_t)(x * cur->vga_device->width) / win_x;
 
-	size_t cursor_y = (size_t)(y * 25) / win_y;
+	size_t cursor_y = (size_t)(y * cur->vga_device->height) / win_y;
 
 	inverse_end = cursor_x + (cursor_y * cur->vga_device->width);
 }
@@ -251,9 +255,9 @@ void handle_mouse_move(size_t x, size_t y, int win_x, int win_y) {
 void handle_mouse_button(size_t x, size_t y, int win_x, int win_y, bool released) {
 	if (!cur) return;
 
-	size_t cursor_x = (size_t)(x * 80) / win_x;
+	size_t cursor_x = (size_t)(x * cur->vga_device->width) / win_x;
 
-	size_t cursor_y = (size_t)(y * 25) / win_y;
+	size_t cursor_y = (size_t)(y * cur->vga_device->height) / win_y;
 
 	if (!released) {
 		inverse_start = cursor_x + (cursor_y * cur->vga_device->width);

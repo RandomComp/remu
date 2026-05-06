@@ -253,6 +253,17 @@ vga_text_device_t* init_vga_text_device(ram_t* ram, _ssize_t columns, _ssize_t r
 
 	// emulator_setup_port_out(0x3CE, sequence_reg_select);
 	// emulator_setup_port_out(0x3CF, sequence_reg_write_data);
+
+	vga->pci_device = pci_init_device(
+		0, 0, 0,
+		PCI_DISPLAY, PCI_DISPLAY_VGA,
+		PCI_VENDOR_EMU, 0x5244,
+		0, 0
+	);
+
+	pci_device_register(nullptr, vga->pci_device);
+
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA GPU registered in PCI");
 	
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA text device initialized");
 
@@ -295,6 +306,10 @@ void free_vga_text_device(vga_text_device_t* vga) {
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA text screen deinitialization...");
 
 	vga->vidmem = nullptr;
+
+	if (vga->pci_device) {
+		free_pci_device(vga->pci_device); vga->pci_device = nullptr;
+	}
 
 	free(vga);
 	

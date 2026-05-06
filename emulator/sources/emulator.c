@@ -2,6 +2,8 @@
 
 #include "cpu/emulator_cpu.h"
 
+#include "pci/emulator_pci.h"
+
 #include "time/emulator_pit.h"
 
 #include "memory/emulator_ram.h"
@@ -53,7 +55,13 @@ static emulator_t* cur = nullptr;
 tick_timer_t emulator_setup_tick_timer(emulator_t* _emulator, tick_timer_handler_t handler, time_t ms) {
 	emulator_t* emulator = _emulator;
 
-	if (!_emulator && cur) emulator = cur;
+	if (!emulator) emulator = cur;
+
+	if (!emulator) {
+		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot setup tick timer: no emulator instance present");
+
+		return (tick_timer_t){ 0 };
+	}
 
 	tick_timer_t timer = (tick_timer_t){ 
 		.handler = handler, .ms = ms, .last_time = emulator->ticks
@@ -172,12 +180,34 @@ static _size_t debug_read() {
 	return 0;
 }
 
+static byte buf[64] = { 0 }; static size_t buf_pos = 0;
+
 static void debug_write(_size_t data) {
+	data = data & 0x7F;
+
+	if (data == '\n' || buf_pos >= sizeof(buf)) {
+		emulator_log(true, LOG_SEVERITY_REPORT, "%.64s", buf);
+
+		memset(buf, 0, sizeof(buf));
+
+		buf_pos = 0;
+	}
+
+	else buf[buf_pos++] = data;
+
 	return;
 }
 
-emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t frame_width, _ssize_t frame_height, _ssize_t bpp, bool vesa_mode, uint64 frametime_ns, uint64 halted_frametime_ns) {
+emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t frame_width, _ssize_t frame_height, _ssize_t bpp, bool vesa_mode, uint32 frametime_ns, uint32 halted_frametime_ns) {
 	emulator_log(true, LOG_SEVERITY_INFO, "Emulator initialization...");
+
+	if (vesa_mode) {
+		#ifndef EMULATOR_SDL_USING
+		emulator_log(true, LOG_SEVERITY_ERROR, "VESA is unsupported in non-gui mode");
+
+		return nullptr;
+		#endif
+	}
 
 	emulator_t* emulator = malloc(sizeof(emulator_t));
 
@@ -279,6 +309,8 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t fr
 
 	emulator->cpu = init_cpu(frametime_ns, halted_frametime_ns);
 
+	emulator->pci = init_pci();
+
 	emulator->ram = init_ram(8 * 1024 * 1024);
 
 	emulator->pit = init_pit(emulator->cpu->pic);
@@ -292,8 +324,7 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t fr
 		free_emulator(emulator);
 
 		return nullptr;
-		#endif
-
+		#else
 		emulator->vesa_gpu = init_vesa_device(
 			frame_width, frame_height, bpp
 		);
@@ -303,6 +334,7 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t fr
 			emulator->screen_width, emulator->screen_height, 
 			emulator->vesa_gpu
 		);
+		#endif
 	}
 
 	else {
@@ -332,13 +364,12 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t fr
 
 	init_power_control();
 
-	emulator_setup_port_in(0x80, debug_read);
+	emulator->is_hardware_reseting = false;
 
+	emulator_setup_port_in(0x80, debug_read);
 	emulator_setup_port_out(0x80, debug_write);
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Emulator initialized");
-
-	emulator->is_hardware_reseting = false;
 
 	return emulator;
 }
@@ -573,6 +604,10 @@ void free_emulator(emulator_t* _emulator) {
 	
 	if (emulator->ram) {
 		free_ram(emulator->ram); emulator->ram = nullptr;
+	}
+	
+	if (emulator->pci) {
+		free_pci(emulator->pci); emulator->pci = nullptr;
 	}
 	
 	if (emulator->tick_timers) {

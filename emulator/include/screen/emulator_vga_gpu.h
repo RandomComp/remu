@@ -9,6 +9,8 @@
 
 #include "screen/emulator_vga_fwd.h"
 
+#include "pci/emulator_pci_fwd.h"
+
 struct vga_text_device_t {
 	uint16* vidmem; uint64 vidmem_ram_addr;
 
@@ -21,6 +23,8 @@ struct vga_text_device_t {
 	byte crt_reg_a;
 
 	byte mode_reg;
+
+	pci_device_t* pci_device;
 };
 
 vga_text_device_t* init_vga_text_device(ram_t* ram, _ssize_t columns, _ssize_t rows);

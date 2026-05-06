@@ -14,13 +14,13 @@
 typedef struct vesa_screen_t {
 	#ifdef EMULATOR_SDL_USING
 	SDL_Texture* texture;
-	#endif
 
 	uint32* emulator_screen;
-	size_t emulator_screen_width;
-	size_t emulator_screen_height;
+	_size_t emulator_screen_width;
+	_size_t emulator_screen_height;
 
 	vesa_device_t* vesa_device;
+	#endif
 } vesa_screen_t;
 
 #ifdef EMULATOR_SDL_USING

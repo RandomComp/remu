@@ -3,6 +3,8 @@
 
 #include "cpu/emulator_cpu.h"
 
+#include "pci/emulator_pci.h"
+
 #include "time/emulator_pit.h"
 
 #include "memory/emulator_ram.h"
@@ -40,10 +42,15 @@ typedef struct tick_timer_t {
 
 	tick_timer_handler_t handler;
 } tick_timer_t;
+#ifndef EMULATOR_SDL_USING
+#define FRAMETIME_NS (1000 * 1000 * 20)
 
+#define HALTED_FRAMETIME_NS (1000 * 1000 * 200)
+#else
 #define FRAMETIME_NS (1000 * 1000 * 10)
 
 #define HALTED_FRAMETIME_NS (1000 * 1000 * 10)
+#endif
 
 #define TICK_TIMERS_SIZE_STEP (4)
 
@@ -62,6 +69,8 @@ typedef struct tick_timer_t {
 struct emulator_t {
 	cpu_t* cpu;
 
+	pci_t* pci;
+
 	pit_t* pit;
 
 	ram_t* ram;
@@ -79,9 +88,7 @@ struct emulator_t {
 	hdd_ata_pio_t* hdd;
 
 	tick_timer_t* tick_timers;
-
 	size_t tick_timers_cnt; 
-	
 	size_t tick_timers_size;
 
 	uint64 ticks;
@@ -125,7 +132,7 @@ void emulator_forced_update_all_timers(emulator_t* emulator);
 
 void emulator_update_all(emulator_t* emulator);
 
-emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t frame_width, _ssize_t frame_height, _ssize_t bpp, bool vesa_mode, uint64 frametime_ns, uint64 halted_frametime_ns);
+emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t frame_width, _ssize_t frame_height, _ssize_t bpp, bool vesa_mode, uint32 frametime_ns, uint32 halted_frametime_ns);
 
 void free_emulator(emulator_t* emulator);
 

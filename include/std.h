@@ -3,9 +3,22 @@
 
 #include "types.h"
 
+#include "builtins/builtins.h"
+
+#include "builtins/string.h"
+
+#include "math/math.h"
+
 #define COLUMNS 80
 
 #define ROWS 25
+
+typedef enum parse_num_err_e {
+	PARSE_NUM_OK = 0,
+	PARSE_NUM_INVLD_RESULT_PTR,
+	PARSE_NUM_INVLD_STR,
+	PARSE_NUM_INVLD_RADIX,
+} parse_num_err_e;
 
 void init_std(uint16* _vidmem);
 
@@ -18,11 +31,19 @@ void clear_line();
 size_t kprint(const c_str str);
 size_t sprint(byte *s, const c_str str);
 
+size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list);
+
+size_t snprintf(byte* s, ssize_t max_len, const c_str format, ...);
+
 size_t vsprintf(byte* s, const c_str format, va_list list);
 
 size_t sprintf(byte* s, const c_str format, ...);
 
 size_t kprintf(const c_str format, ...);
+
+byte blkgetch(void);
+
+size_t sscanf(const byte* s, const c_str format, ...);
 
 uintmax_t get_num_digits(uintmax_t num, uintmax_t base, bool signable);
 
@@ -44,7 +65,7 @@ void strip_str(byte* str, size_t size);
 
 ErrorCode parse_hex(byte* result, size_t res_size, const c_str str);
 
-uintmax_t parse_num(const c_str str, uintmax_t radix);
+int parse_num(const c_str str, uintmax_t radix, uintmax_t* result, size_t* len);
 
 void snprint_hex(byte* s, ssize_t max_size, byte* num, size_t size);
 void print_hex(byte* num, size_t offset, size_t size);
@@ -58,6 +79,6 @@ void get_cursor_pos(ssize_t* x, ssize_t* y);
 
 void set_style(byte style);
 
-byte get_style();
+byte get_style(void);
 
 #endif

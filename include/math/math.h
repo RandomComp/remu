@@ -13,8 +13,6 @@
 
 #define INFINITY (__builtin_inff())
 
-// Лучше использовать аналогичные функции ( они типобезопаснее, используют эти макросы для упрощения )
-
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -24,6 +22,8 @@
 #define INRANGE(value, min_value, max_value) ((value) >= (min_value) && (value) <= (max_value))
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
+
+// Лучше использовать аналогичные функции ( они типобезопаснее, используют эти макросы для упрощения )
 
 typedef struct ProcessorMathState {
 	bool bOverflow; // Флаг переполнения типа
@@ -161,9 +161,9 @@ static inline bool isPowerOfTwoU32(size_t x) {
 	return x > 0 && ((x & (x - 1)) == 0);
 }
 
-size_t align_down(size_t x, size_t align);
+intmax_t align_down(intmax_t x, intmax_t align);
 
-size_t align_up(size_t x, size_t align);
+intmax_t align_up(intmax_t x, intmax_t align);
 
 static inline double floor(double x) {
 	double result = trunc(x);

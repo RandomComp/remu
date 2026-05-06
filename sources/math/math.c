@@ -66,7 +66,7 @@ float fmod(float a, float b) {
 	return FMOD(a, b);
 }
 
-size_t align_down(size_t x, size_t align) {
+intmax_t align_down(intmax_t x, intmax_t align) {
 	if (align == 0) {
 		// throw(ERROR_DIVISION_BY_ZERO);
 
@@ -78,7 +78,7 @@ size_t align_down(size_t x, size_t align) {
 	return (x / align) * align;
 }
 
-size_t align_up(size_t x, size_t align) {
+intmax_t align_up(intmax_t x, intmax_t align) {
 	if (align == 0) {
 		// throw(ERROR_DIVISION_BY_ZERO);
 

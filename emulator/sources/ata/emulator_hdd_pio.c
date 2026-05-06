@@ -4,6 +4,8 @@
 
 #include "emulator_io.h"
 
+#include "pci/emulator_pci.h"
+
 #include "cpu/emulator_pic.h"
 
 #include "types.h"
@@ -428,12 +430,25 @@ hdd_ata_pio_t* init_hdd_ata_pio(_size_t sectors) {
 
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "Created ATA HDD with size %llu kb", sectors * 512);
 
+	hdd->pci_device = pci_init_device(
+		0, 0, 0,
+		PCI_STORAGE, PCI_STORAGE_IDE,
+		PCI_VENDOR_EMU, 0x8263,
+		0, 0
+	);
+
+	pci_device_register(nullptr, hdd->pci_device);
+
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "HDD ATA PIO registered in PCI");
+
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "HDD and ATA PIO initialized");
 
 	return hdd;
 }
 
 void free_hdd_ata_pio(hdd_ata_pio_t* hdd) {
+	if (!hdd) return;
+
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "HDD ATA PIO deinitializing...");
 
 	if (hdd == cur) cur = nullptr;
@@ -443,7 +458,11 @@ void free_hdd_ata_pio(hdd_ata_pio_t* hdd) {
 	
 	hdd->master_file = nullptr;
 
-	if (hdd) free(hdd);
+	if (hdd->pci_device) {
+		free_pci_device(hdd->pci_device); hdd->pci_device = nullptr;
+	}
+
+	free(hdd);
 
 	emulator_release_port_in(ATA_ERROR_REG);
 

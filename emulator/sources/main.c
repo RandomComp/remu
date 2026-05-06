@@ -358,14 +358,30 @@ int main(int argc, const char** argv) {
 
 	uint64 init_start_time = (ts.tv_sec * 1000000) + ts.tv_nsec / 1000;
 
-	emulator = init_emulator(
-		true, 
-		multiboot_section->width, multiboot_section->height, 
-		multiboot_section->width, multiboot_section->height, multiboot_section->depth, true, 
-		FRAMETIME_NS, HALTED_FRAMETIME_NS);
+	if (multiboot_section->mode_type == 0) {
+		emulator = init_emulator(
+			true, 
+			multiboot_section->width, multiboot_section->height, 
+			multiboot_section->width, multiboot_section->height, multiboot_section->depth,
+			true, 
+			FRAMETIME_NS, HALTED_FRAMETIME_NS
+		);
+	}
+	
+	else {
+		emulator = init_emulator(
+			true, 
+			multiboot_section->width * 8, multiboot_section->height * 16, 
+			multiboot_section->width, multiboot_section->height, multiboot_section->depth,
+			false, 
+			FRAMETIME_NS, HALTED_FRAMETIME_NS
+		);
+	}
 
 	#ifdef EMULATOR_SDL_USING
-	// SDL_SetWindowSize(emulator->window, 80 * 8 * 2, 25 * 16 * 2);
+	if (multiboot_section->mode_type != 0) {
+		SDL_SetWindowSize(emulator->window, multiboot_section->width * 8 * 2, multiboot_section->height * 16 * 2);
+	}
 
 	SDL_SetWindowPosition(emulator->window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	#endif
@@ -382,7 +398,6 @@ int main(int argc, const char** argv) {
 	kernel_args.__emulator_cli = set_cli;
 	kernel_args.__emulator_start_tsc = start_tsc;
 	kernel_args.__emulator_idt_flush = idt_flush_emulator;
-	kernel_args.__emulator_kernel_report = report;
 
 	__emulator_init_kernel(kernel_args);
 
@@ -404,13 +419,15 @@ int main(int argc, const char** argv) {
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Initialization duration: %llu us", emulator_init_dur);
 
-	// const c_str msg = "OS Booting (Loader message)..."; const size_t msg_len = strlen(msg);
+	if (multiboot_section->mode_type != 0) {
+		const c_str msg = "OS Booting (Loader message)..."; const size_t msg_len = strlen(msg);
 
-	// const _size_t centered_column = (emulator->vga_gpu->width / 2) - (msg_len / 2);
+		const _size_t centered_column = (emulator->vga_gpu->width / 2) - (msg_len / 2);
 
-	// const _size_t centered_row = (emulator->vga_gpu->height / 2) - 1;
+		const _size_t centered_row = (emulator->vga_gpu->height / 2) - 1;
 
-	// draw_vga_text(emulator->vga_gpu, msg, 0x1F, centered_column, centered_row);
+		draw_vga_text(emulator->vga_gpu, msg, 0x1F, centered_column, centered_row);
+	}
 
 	pthread_t kmain_thread = run_emulator(emulator, kmain);
 
@@ -434,21 +451,26 @@ int main(int argc, const char** argv) {
 				bool is_ctrl = (event.key.keysym.mod & KMOD_CTRL) || (event.key.keysym.mod & KMOD_GUI);
 				bool is_shift = (event.key.keysym.mod & KMOD_SHIFT);
 
-				// if (is_ctrl && is_shift) {
-				// 	switch (event.key.keysym.sym) {
-				// 		case SDLK_c:
-				// 			handle_copy_selected();
-				// 			break;
-				// 		case SDLK_v:
-				// 			handle_paste_selected();
-				// 			break;
-						
-				// 		default:
-				// 			break;
-				// 	}
-				// }
+				if (multiboot_section->mode_type != 0) {
+					if (is_ctrl && is_shift) {
+						switch (event.key.keysym.sym) {
+							case SDLK_c:
+								handle_copy_selected();
+								break;
+							case SDLK_v:
+								handle_paste_selected();
+								break;
+							
+							default:
+								break;
+						}
+					}
 
-				// else
+					else
+						handle_key_gui(event.key.keysym.scancode, false);
+				}
+
+				else
 					handle_key_gui(event.key.keysym.scancode, false);
 			}
 
@@ -456,27 +478,29 @@ int main(int argc, const char** argv) {
 				handle_key_gui(event.key.keysym.scancode, true);
 			}
 
-			// else if (event.type == SDL_MOUSEBUTTONDOWN) {
-			// 	if (event.button.button == 1) {
-			// 		SDL_GetWindowSize(emulator->window, &win_x, &win_y);
+			if (multiboot_section->mode_type != 0) {
+				if (event.type == SDL_MOUSEBUTTONDOWN) {
+					if (event.button.button == 1) {
+						SDL_GetWindowSize(emulator->window, &win_x, &win_y);
 
-			// 		handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, false);
-			// 	}
-			// }
+						handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, false);
+					}
+				}
 
-			// else if (event.type == SDL_MOUSEBUTTONUP) {
-			// 	if (event.button.button == 1) {
-			// 		SDL_GetWindowSize(emulator->window, &win_x, &win_y);
+				else if (event.type == SDL_MOUSEBUTTONUP) {
+					if (event.button.button == 1) {
+						SDL_GetWindowSize(emulator->window, &win_x, &win_y);
 
-			// 		handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, true);
-			// 	}
-			// }
+						handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, true);
+					}
+				}
 
-			// else if (event.type == SDL_MOUSEMOTION) {
-			// 	SDL_GetWindowSize(emulator->window, &win_x, &win_y);
+				else if (event.type == SDL_MOUSEMOTION) {
+					SDL_GetWindowSize(emulator->window, &win_x, &win_y);
 
-			// 	handle_mouse_move(event.motion.x, event.motion.y, win_x, win_y);
-			// }
+					handle_mouse_move(event.motion.x, event.motion.y, win_x, win_y);
+				}
+			}
 		}
 
 		if (!emulator->is_hardware_reseting)
@@ -497,7 +521,9 @@ int main(int argc, const char** argv) {
 			
 		itval_ns = cpu_get_itval_ns(emulator->cpu);
 
-		SDL_Delay((uint32)(itval_ns / 1000000));
+		// SDL_Delay((uint32)(itval_ns / 1000000));
+
+		usleep(itval_ns / 1000);
 	}
 	#else
 	emulator_setup_tick_timer(emulator, handle_keys_cli, 10);

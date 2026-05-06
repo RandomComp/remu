@@ -15,7 +15,9 @@ int calc_cmd(const byte **argv, size_t argc) {
 
 	getstr(true, buf, 64);
 
-	int radix = parse_num(buf, 10);
+	uintmax_t radix = 0;
+	
+	parse_num(buf, 10, &radix, nullptr);
 
 	radix = radix <= 1 ? 10 : radix;
 
@@ -25,7 +27,9 @@ int calc_cmd(const byte **argv, size_t argc) {
 
 	getstr(true, buf, 64);
 
-	intmax_t first_num = parse_num(buf, radix);
+	intmax_t first_num = 0;
+	
+	parse_num(buf, radix, &first_num, nullptr);
 
 	memset(buf, 0, 64);
 
@@ -33,7 +37,9 @@ int calc_cmd(const byte **argv, size_t argc) {
 
 	getstr(true, buf, 64);
 
-	intmax_t second_num = parse_num(buf, radix);
+	intmax_t second_num = 0;
+	
+	parse_num(buf, radix, &second_num, nullptr);
 
 	memset(buf, 0, 64);
 
@@ -65,7 +71,9 @@ int calc_cmd(const byte **argv, size_t argc) {
 
 	getstr(true, buf, 64);
 
-	int result_radix = parse_num(buf, 10);
+	uintmax_t result_radix = 0;
+	
+	parse_num(buf, 10, &result_radix, nullptr);
 
 	result_radix = result_radix <= 1 ? 10 : result_radix;
 

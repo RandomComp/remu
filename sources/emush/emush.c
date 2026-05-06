@@ -5,17 +5,12 @@
 #include "std.h"
 
 #include "drivers/ata/ata.h"
-
 #include "drivers/sfs/sfs.h"
-
+#include "drivers/pci/pci.h"
 #include "drivers/time/cmos.h"
-
 #include "drivers/power.h"
-
 #include "drivers/hid/kbdps2.h"
-
 #include "drivers/video/vga.h"
-
 #include "drivers/memory/memory.h"
 
 #include "multiboot.h"
@@ -30,18 +25,6 @@ static byte history[16][64] = { 0 };
 
 static ssize_t command_index = 0;
 
-int set_cmd(const byte** argv, size_t argc);
-int clear_cmd(const byte** argv, size_t argc);
-int echo_cmd(const byte** argv, size_t argc);
-int history_cmd(const byte** argv, size_t argc);
-int ls_cmd(const byte** argv, size_t argc);
-int touch_cmd(const byte** argv, size_t argc);
-int cat_cmd(const byte** argv, size_t argc);
-
-int graphtest_cmd(const byte** argv, size_t argc);
-int shut_cmd(const byte** argv, size_t argc);
-int reboot_cmd(const byte** argv, size_t argc);
-
 emush_cmd emush_commands[] = {
 	{"help", 		help_cmd},
 	{"set", 		set_cmd},
@@ -53,6 +36,7 @@ emush_cmd emush_commands[] = {
 	{"info", 		info_cmd},
 	{"ata", 		ata_cmd},
 	{"sfs", 		sfs_cmd},
+	{"pci", 		pci_cmd},
 	{"ls", 			ls_cmd},
 	{"touch", 		touch_cmd},
 	{"cat", 		cat_cmd},
@@ -95,16 +79,16 @@ int touch_cmd(const byte** argv, size_t argc) {
 		return -1;
 	}
 
-	const byte* content = argv[1]; size_t content_size = strlen(content);
+	const byte* content = argv[2]; size_t content_size = strlen(content);
 
-	sfs_error_e error = sfs_create_file(ATA_MASTER, argv[0], content, content_size);
+	sfs_error_e error = sfs_create_file(ATA_MASTER, argv[1], content, content_size);
 
 	if (error == SFS_ERROR_FILE_EXISTS) {
-		kprintf("touch: %vfbr%s: file already exists\n", argv[0]);
+		kprintf("touch: %vfbr%s: file already exists\n", argv[1]);
 	}
 
 	else if (error == SFS_ERROR_NOT_ENGH_MMRY) {
-		kprintf("touch: %vfbr%s: is not enough space available on the disk\n", argv[0]);
+		kprintf("touch: %vfbr%s: is not enough space available on the disk\n", argv[1]);
 	}
 
 	return error;
@@ -113,12 +97,12 @@ int touch_cmd(const byte** argv, size_t argc) {
 int cat_cmd(const byte** argv, size_t argc) {
 	sfs_error_e result_error = SFS_OK;
 
-	for (size_t i = 0; i < argc; i++) {
-		byte content[5120] = { 0 };
+	for (size_t i = 1; i < argc; i++) {
+		byte content[507 * 8] = { 0 };
 
 		size_t readed = 0;
 
-		sfs_error_e error = sfs_read_file(ATA_MASTER, argv[i], content, 5120, &readed);
+		sfs_error_e error = sfs_read_file(ATA_MASTER, argv[i], content, 507 * 8, &readed);
 
 		if (result_error == SFS_OK)
 			result_error = error;
@@ -196,8 +180,8 @@ int clear_cmd(const byte **argv, size_t argc) {
 }
 
 int echo_cmd(const byte **argv, size_t argc) {
-	for (size_t i = 0; i < argc; i++) {
-		kprintf("%s\n", argv[i]);
+	for (size_t i = 1; i < argc; i++) {
+		kprintf("%s ", argv[i]);
 	}
 
 	kprint("\n");
@@ -206,8 +190,10 @@ int echo_cmd(const byte **argv, size_t argc) {
 }
 
 int set_cmd(const byte** argv, size_t argc) {
-	if (argc >= 2) {
-		set_var(argv[0], argv[1]);
+	if (argc >= 3) {
+		for (size_t i = 1; i < align_down(argc - 1, 2); i += 2) {
+			set_var(argv[i], argv[i + 1]);
+		}
 	}
 
 	size_t max_var_name_len = 0;
@@ -292,7 +278,41 @@ int reboot_cmd(const byte **argv, size_t argc) {
 	return 0;
 }
 
-int set_var(byte* var_name, byte* value) {
+int pci_cmd(const byte** argv, size_t argc) {
+	if (argc <= 1) {
+		kprintf("%vfbrToo few arguments, needing 1 argument: action name\n");
+
+		return -1;
+	}
+
+	const byte* action = argv[1];
+
+	if (strcmp(action, "help") == 0) {
+		kprintf("%vfbyUsage:\n");
+
+		kprintf("\t%vfbypci [action]\n");
+
+		kprintf("available actions: \n");
+
+		kprintf("\thelp -- see help\n");
+
+		kprintf("\tscan -- scan for PCI devices\n");
+	}
+
+	else if (strcmp(action, "scan") == 0) {
+		pci_scan();
+	}
+
+	else {
+		kprintf("%s: %vfbrunknown action \"%s\"\n", argv[0], action);
+
+		return -1;
+	}
+
+	return 0;
+}
+
+int set_var(const byte* var_name, const byte* value) {
 	bool ok = false; size_t index = 0;
 
 	for (size_t i = 0; i < vars_max_cnt; i++) {
@@ -333,7 +353,7 @@ int set_var(byte* var_name, byte* value) {
 	return 0;
 }
 
-byte* get_var(byte* var_name) {
+byte* get_var(const byte* var_name) {
 	for (size_t i = 0; i < vars_max_cnt; i++) {
 		byte* cur_var_name = vars_name[i];
 
@@ -353,8 +373,8 @@ static byte last_err = 0;
 
 static byte src_typed[512] = { 0 };
 
-int emush_exec(const byte* _command, size_t command_len) {
-	if (!_command) {
+int emush_exec(const byte* command, size_t command_len) {
+	if (!command) {
 		return -1;
 	}
 
@@ -368,23 +388,15 @@ int emush_exec(const byte* _command, size_t command_len) {
 
 	memset(src_typed, 0, sizeof(src_typed));
 
-	memcpy(src_typed, _command, MIN(sizeof(src_typed), command_len));
+	memcpy(src_typed, command, MIN(sizeof(src_typed), command_len));
 
 	byte* argv[16] = { "" };
 
 	size_t argc = 0;
 
-	c_str command = parse_cli_args(_command);
+	c_str arg = parse_cli_args(command);
 
-	if (command[0] == '$') {
-		byte* var_name = command + 1;
-
-		command = get_var(var_name);
-	}
-
-	c_str arg = parse_cli_args(nullptr);
-
-	while (arg != nullptr) {
+	while (arg != nullptr && argc < 16) {
 		if (arg[0] == '$') {
 			byte* var_name = arg + 1;
 
@@ -399,7 +411,7 @@ int emush_exec(const byte* _command, size_t command_len) {
 	bool ok = false;
 
 	for (size_t i = 0; i < commands_cnt; i++) {
-		if (strcmp(command, emush_commands[i].name) == 0) {
+		if (strcmp(argv[0], emush_commands[i].name) == 0) {
 			if (emush_commands[i].handler) {
 				int _last_err = emush_commands[i].handler(argv, argc);
 
@@ -417,8 +429,8 @@ int emush_exec(const byte* _command, size_t command_len) {
 		}
 	}
 
-	if (!ok && strlen(command) != 0) {
-		kprintf("\"%s\": %vfbrno such command\n", command);
+	if (!ok && strlen(argv[0]) != 0) {
+		kprintf("\"%s\": %vfbrno such command\n", argv[0]);
 
 		last_err = 127;
 	}

@@ -28,11 +28,12 @@ vesa_screen_t* init_vesa_screen(SDL_Texture* texture, uint32* emulator_screen, s
 vesa_screen_t* init_vesa_screen(vesa_device_t* vesa_device)
 #endif
 {
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VESA screen initializing...");
+
 	#ifndef EMULATOR_SDL_USING
 	emulator_log(true, LOG_SEVERITY_ERROR, "VESA is unsupported in non-gui mode");
+	#else
 
-	return nullptr;
-	#endif
 
 	vesa_screen_t* screen = malloc(sizeof(vesa_screen_t));
 
@@ -49,23 +50,41 @@ vesa_screen_t* init_vesa_screen(vesa_device_t* vesa_device)
 
 	emulator_setup_tick_timer(nullptr, update_vesa_screen, 33);
 
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VESA screen initialized!");
+
 	return screen;
+	#endif
+
+	return nullptr;
 }
 
 void draw_vesa_screen(vesa_screen_t* screen) {
 	if (!screen) return;
 
+	// TODO: Реализовать поддержку разной глубины цвета
+
+	#ifndef EMULATOR_SDL_USING
+	emulator_log(true, LOG_SEVERITY_ERROR, "VESA screen updating fail: VESA is unsupported in non-gui mode");
+	#else
 	memcpy(screen->emulator_screen, screen->vesa_device->vidmem, screen->vesa_device->width * screen->vesa_device->height * screen->vesa_device->bpp / 8);
 
 	SDL_UpdateTexture(screen->texture, null, screen->emulator_screen, screen->emulator_screen_width * sizeof(uint32));
+
+	emulator_log(true, LOG_SEVERITY_TRACE, "VESA screen updated!");
+	#endif
 }
 
 void free_vesa_screen(vesa_screen_t* screen) {
-	if (screen)
-		free(screen);
+	if (!screen) return;
+ 
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VESA screen deinitializing...");
+
+	free(screen);
 
 	emulator_release_tick_timer(nullptr, update_vesa_screen);
 
 	if (cur == screen)
 		cur = nullptr;
+ 
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "VESA screen deinitialized");
 }
