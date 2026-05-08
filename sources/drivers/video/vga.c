@@ -2,6 +2,46 @@
 
 #include "drivers/io.h"
 
+#include "drivers/memory/memory.h"
+
+#include "terminal.h"
+
+static uint16* vidmem = nullptr;
+
+void init_vga() {
+	vidmem = get_ram() + 0xB8000;
+}
+
+terminal_out_t init_vga_stdout(void) {
+	return (terminal_out_t){
+		.columns = VGA_COLUMNS,
+		.rows = VGA_ROWS,
+		.setch = vga_setch,
+		.getch = vga_getch,
+		.get_style = vga_get_style
+	};
+}
+
+byte vga_getch(size_t column, size_t row) {
+	size_t pos = column + (row * VGA_COLUMNS);
+
+	return vidmem[pos] & 0xFF;
+}
+
+byte vga_get_style(size_t column, size_t row) {
+	size_t pos = column + (row * VGA_COLUMNS);
+
+	return (vidmem[pos] >> 8) & 0xFF;
+}
+
+void vga_setch(size_t column, size_t row, byte style, byte c) {
+	if (!vidmem) return;
+
+	size_t pos = column + (row * VGA_COLUMNS);
+
+	vidmem[pos] = ((uint16)style << 8) | c;
+}
+
 void crt_set_cursor_pos(size_t x, size_t y) {
 	size_t cursor_pos = (y * VGA_COLUMNS) + x;
 

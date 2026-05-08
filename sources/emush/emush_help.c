@@ -10,29 +10,53 @@ extern emush_cmd emush_commands[];
 
 extern const size_t commands_cnt;
 
-int help_cmd(const byte** argv, size_t argc) {
-	const byte* commands_descriptions[] = {
-		"see help",
-		"sets emush variable",
-		"clears screen",
-		"echoes back the arguments",
-		"system logo",
-		"readme instruction",
-		"show commands history",
-		"see information about system",
-		"manipulate ata drives",
-		"manipulate sfs drives",
-		"manipulate pci devices",
-		"list current directory",
-		"creates file ",
-		"concatenate files and see",
-		"see graphical test in text mode",
-		"see system time",
-		"enter calculator",
-		"shutdown system",
-		"restart system"
-	};
+const byte* commands_descriptions[] = {
+	"see help",
+	"sets emush variable",
+	"clears screen",
+	"echoes back the arguments",
+	"system logo",
+	"readme instruction",
+	"show commands history",
+	"see information about system",
+	"manipulate ata drives",
+	"manipulate sfs drives",
+	"manipulate pci devices",
+	"list current directory",
+	"moves file to directory/renames file",
+	"creates file ",
+	"concatenate files and see",
+	"see graphical test in text mode",
+	"see system time",
+	"enter calculator",
+	"shutdown system",
+	"restart system"
+};
 
+const byte* commands_example[] = {
+	"help touch",
+	"set some_var \"Hello, world!\"",
+	"clear",
+	"echo -e \"Welcome to %vfbrE%vfbgM%vfbyU%vd-OS\"",
+	"logo",
+	"readme",
+	"history",
+	"info",
+	"ata dump 0",
+	"sfs format",
+	"pci scan",
+	"ls",
+	"mv old_name.txt new_name.txt",
+	"touch test.txt \"Welcome to EMU-OS\"",
+	"cat test.txt",
+	"graphtest",
+	"time",
+	"calc",
+	"shut",
+	"reboot"
+};
+
+void help_all(void) {
 	size_t max_command_len = 0;
 
 	for (size_t i = 0; i < commands_cnt; i++) {
@@ -51,19 +75,45 @@ int help_cmd(const byte** argv, size_t argc) {
 			max_description_len = description_len;
 	}
 
-	size_t center = (COLUMNS / 2) - (max_command_len + max_description_len + 4) / 2;
+	size_t columns = get_columns();
 
-	kprintf("%*sÚ%0mÄ*sÂ%0mÄ*s¿\n\r", center, "", max_command_len + 2, "", max_description_len + 2, "");
+	size_t center = (columns / 2) - (max_command_len + max_description_len + 2 + 2 + 3) / 2;
 
-	kprintf("%*s³%=*s³%=*s³\n\r", center, "", max_command_len + 2, "Command", max_description_len + 2, "Description");
+	kprintf("%*sâ”Œ%0mâ”€*sâ”¬%0mâ”€*sâ”\n\r", center, "", max_command_len + 2, "", max_description_len + 2, "");
 
-	kprintf("%*sÃ%0mÄ*sÅ%0mÄ*s´\n\r", center, "", max_command_len + 2, "", max_description_len + 2, "");
+	kprintf("%*sâ”‚%=*sâ”‚%=*sâ”‚\n\r", center, "", max_command_len + 2, "Command", max_description_len + 2, "Short Description");
+
+	kprintf("%*sâ”œ%0mâ”€*sâ”¼%0mâ”€*sâ”¤\n\r", center, "", max_command_len + 2, "", max_description_len + 2, "");
 
 	for (size_t i = 0; i < commands_cnt; i++) {
-		kprintf("%*s³ %vfby%*s%vd ³ %vfbg%-*s%vd ³\n", center, "", max_command_len, emush_commands[i].name, max_description_len, commands_descriptions[i]);
+		kprintf("%*sâ”‚ %vfby%-*s%vd â”‚ %vfbg%*s%vd â”‚\n", center, "", max_command_len, emush_commands[i].name, max_description_len, commands_descriptions[i]);
 	}
 
-	kprintf("%*sÀ%0mÄ*sÁ%0mÄ*sÙ\n\r", center, "", max_command_len + 2, "", max_description_len + 2, "");
+	kprintf("%*sâ””%0mâ”€*sâ”´%0mâ”€*sâ”˜\n\r", center, "", max_command_len + 2, "", max_description_len + 2, "");
+
+	// #define note_message "Note: to see more help about those commands:"
+
+	// center = (COLUMNS / 2) - strlen(note_message) / 2;
+
+	// kprintf("%*s" note_message "\n", center, "");
+
+	// kprintf("%*s%=*s\n\r", center, "", strlen(note_message) - 1, "use help < command >");
+}
+
+void help(const byte* command) {
+
+}
+
+int help_cmd(const byte** argv, size_t argc) {
+	if (argc <= 1 || strcmp(argv[1], "all") == 0) {
+		help_all();
+		
+		return 0;
+	}
+
+	for (size_t i = 1; i < argc; i++) {
+		help(argv[i]);
+	} 
 
 	return 0;
 }

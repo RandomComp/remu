@@ -110,15 +110,13 @@ typedef enum ext_scancode_e {
 	EXT_SCANCODE_ARROW_DOWN = 80,
 } ext_scancode_e;
 
+#include "terminal.h"
+
 void kbdps2_init();
 
-byte getch();
+terminal_in_t init_kbdps2_stdin();
 
-size_t getstr(bool show, byte* buf, size_t buf_size);
-
-byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t command_index, size_t history_size);
-
-size_t getstr_hist_with_auto_add_on(bool show, byte* buf, size_t buf_size, byte history[][64], ssize_t command_index, size_t history_len);
+byte kbdps2_getch();
 
 void kbdps2_deinit();
 

@@ -35,6 +35,8 @@
 
 typedef void (*tick_timer_handler_t)();
 
+typedef void (*kmain_t)(uint32 magic, multiboot_info_t* multiboot);
+
 typedef struct tick_timer_t {
 	time_t last_time;
 
@@ -45,7 +47,7 @@ typedef struct tick_timer_t {
 #ifndef EMULATOR_SDL_USING
 #define FRAMETIME_NS (1000 * 1000 * 20)
 
-#define HALTED_FRAMETIME_NS (1000 * 1000 * 200)
+#define HALTED_FRAMETIME_NS (1000 * 1000 * 20)
 #else
 #define FRAMETIME_NS (1000 * 1000 * 10)
 
@@ -65,6 +67,38 @@ typedef struct tick_timer_t {
 #ifdef EMULATOR_SDL_USING
 #include <SDL2/SDL.h>
 #endif
+
+typedef struct __init_kernel_args_t {
+	void* (*__emulator_get_ram)(void);
+
+	_size_t (*__emulator_port_in)(uint16 port);
+
+	void (*__emulator_port_out)(uint16 port, _size_t value);
+
+	void (*__emulator_wait_halt)(void);
+
+	void (*__emulator_sti)(void);
+
+	void (*__emulator_cli)(void);
+
+	uint64 (*__emulator_start_tsc)(void);
+
+	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
+
+	void (*__emulator_kernel_report)(const c_str msg);
+} __init_kernel_args_t;
+
+typedef struct kernel_t {
+	void (*__emulator_init_kernel)(__init_kernel_args_t kernel_args);
+
+	multiboot_section_t* (*__emulator_read_multiboot_secton)(void);
+
+	void (*kmain)(uint32 magic, multiboot_info_t* multiboot);
+
+	void* dl_handle;
+
+	pthread_t kmain_thread; bool kmain_started; timer_t kmain_ints_exec_timer;
+} kernel_t;
 
 struct emulator_t {
 	cpu_t* cpu;
@@ -103,7 +137,7 @@ struct emulator_t {
 
 	multiboot_info_t* multiboot_info;
 
-	pthread_t kmain_thread; bool kmain_started; timer_t kmain_ints_exec_timer;
+	kernel_t* kernel;
 
 	bool cleaned;
 
@@ -126,7 +160,15 @@ void emulator_release_tick_timer(emulator_t* emulator, tick_timer_handler_t hand
 
 void reset_emulator(emulator_t* emulator, int code);
 
-pthread_t run_emulator(emulator_t* emulator, void (*kmain)(uint32 magic, multiboot_info_t* multiboot));
+void main_loop(emulator_t* _emulator, multiboot_section_t* multiboot_section);
+
+kernel_t* emulator_load_kernel(const byte* filename);
+
+int emulator_unload_kernel(emulator_t* emulator);
+
+pthread_t run_emulator(emulator_t* emulator);
+
+void stop_emulator(emulator_t* emulator);
 
 void emulator_forced_update_all_timers(emulator_t* emulator);
 

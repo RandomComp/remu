@@ -433,8 +433,10 @@ hdd_ata_pio_t* init_hdd_ata_pio(_size_t sectors) {
 	hdd->pci_device = pci_init_device(
 		0, 0, 0,
 		PCI_STORAGE, PCI_STORAGE_IDE,
-		PCI_VENDOR_EMU, 0x8263,
-		0, 0
+		PCI_VENDOR_INTEL,
+		0x7111,
+		PCI_VENDOR_EMU,
+		0x8263
 	);
 
 	pci_device_register(nullptr, hdd->pci_device);

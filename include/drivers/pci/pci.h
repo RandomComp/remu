@@ -22,10 +22,21 @@ High word -- subsystem device id
 #define PCI_DISPLAY 	0x03
 #define PCI_MULTIMEDIA 	0x04
 #define PCI_BRIDGE 		0x06
-#define PCI_SERIAL_BUS 	0x0C
+#define PCI_SERIAL 		0x0C
+#define PCI_ENCR_CONTR	0x10
+#define PCI_NON_ESSNTL	0x13
 
+#define PCI_STORAGE_SCSI 			0x00
 #define PCI_STORAGE_IDE 			0x01
-#define PCI_STORAGE_AHCI 			0x06
+#define PCI_STORAGE_FLOPPY 			0x02
+#define PCI_STORAGE_IPI 			0x03 // What a fuck is this?
+#define PCI_STORAGE_RAID_BUS 		0x04
+#define PCI_STORAGE_ATA 			0x05
+#define PCI_STORAGE_SATA 			0x06
+#define PCI_STORAGE_SRL_ATCH_SCSI 	0x07
+#define PCI_STORAGE_NON_VLTL_MMR 	0x08
+#define PCI_STORAGE_FLASH_MEMORY 	0x09
+#define PCI_STORAGE_CONTROLLER	 	0x80
 
 #define PCI_NETWORK_ETHERNET 		0x00
 #define PCI_NETWORK_TOKEN_RING 		0x01
@@ -39,6 +50,9 @@ High word -- subsystem device id
 #define PCI_NETWORK_CONTROLLER 		0x80
 
 #define PCI_DISPLAY_VGA 			0x00
+#define PCI_DISPLAY_XGA 			0x01
+#define PCI_DISPLAY_3D 				0x02
+#define PCI_DISPLAY_CONTROLLER 		0x80
 
 #define PCI_MULTIMEDIA_VIDEO_CONTROLLER	0x00
 #define PCI_MULTIMEDIA_AUDIO_CONTROLLER	0x01
@@ -59,7 +73,22 @@ High word -- subsystem device id
 #define PCI_BRIDGE_INFINIBAND 		0x0A
 #define PCI_BRIDGE_BRIDGE 			0x80
 
-#define PCI_SERIAL_BUS_USB 			0x03
+#define PCI_SERIAL_FIREWIRE		0x00
+#define PCI_SERIAL_ACCESS_BUS 	0x01
+#define PCI_SERIAL_SSA 			0x02
+#define PCI_SERIAL_USB 			0x03
+#define PCI_SERIAL_FIBRE 		0x04
+#define PCI_SERIAL_SMBUS 		0x05
+#define PCI_SERIAL_INFINIBAND 	0x06
+#define PCI_SERIAL_IPMI 		0x07
+#define PCI_SERIAL_SERCOS 		0x08
+#define PCI_SERIAL_CANBUS 		0x09
+#define PCI_SERIAL_MIPI_I3C 	0x0A
+#define PCI_SERIAL_CONTROLLER 	0x80
+
+#define PCI_ENCR_NET_COMPUTE 		0x00
+#define PCI_ENCR_ENTERTAINMENT 		0x10
+#define PCI_ENCR_CONTROLLER 		0x80
 
 #define PCI_VENDOR_EMU				0xEA32
 #define PCI_VENDOR_INTEL			0x8086
@@ -71,6 +100,8 @@ High word -- subsystem device id
 #define PCI_VENDOR_ENSONIQ 			0x1274
 #define PCI_VENDOR_REALTEK 			0x10EC
 #define PCI_VENDOR_QUALCOMM			0x168C
+#define PCI_VENDOR_KIOXIA			0x1E0F
+#define PCI_VENDOR_MEDIATEK 		0x14C3
 
 typedef struct pci_device_name_t {
 	uint32 category;

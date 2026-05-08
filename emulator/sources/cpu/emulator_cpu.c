@@ -146,7 +146,7 @@ static void sig_int(int UNUSED sig) { // 2
 }
 
 static void sig_ill(int UNUSED sig) { // 4
-	// TODO: вызывать тут обработчик из таблицы прерываний
+	// TODO: ╨▓╤ï╨╖╤ï╨▓╨░╤é╤î ╤é╤â╤é ╨╛╨▒╤Ç╨░╨▒╨╛╤é╤ç╨╕╨║ ╨╕╨╖ ╤é╨░╨▒╨╗╨╕╤å╤ï ╨┐╤Ç╨╡╤Ç╤ï╨▓╨░╨╜╨╕╨╣
 
 	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to execute illegal instruction of processor (IllegalInstructionError, ISR 6, SIG %i), and no any handler registered for this ISR, emulator exiting...", sig);
 
@@ -154,7 +154,7 @@ static void sig_ill(int UNUSED sig) { // 4
 }
 
 static void sig_trap(int UNUSED sig) { // 5
-	// TODO: вызывать тут обработчик из таблицы прерываний
+	// TODO: ╨▓╤ï╨╖╤ï╨▓╨░╤é╤î ╤é╤â╤é ╨╛╨▒╤Ç╨░╨▒╨╛╤é╤ç╨╕╨║ ╨╕╨╖ ╤é╨░╨▒╨╗╨╕╤å╤ï ╨┐╤Ç╨╡╤Ç╤ï╨▓╨░╨╜╨╕╨╣
 
 	emulator_log(true, LOG_SEVERITY_ERROR, "While the code was executing, a breakpoint was encountered (BreakPoint, ISR 3, SIG %i), and no any handler registered for this ISR, emulator exiting...", sig);
 	
@@ -172,7 +172,7 @@ static void sig_abrt(int UNUSED sig) { // 6
 }
 
 static void sig_bus(int UNUSED sig) { // 7
-	// TODO: вызывать тут обработчик из таблицы прерываний
+	// TODO: ╨▓╤ï╨╖╤ï╨▓╨░╤é╤î ╤é╤â╤é ╨╛╨▒╤Ç╨░╨▒╨╛╤é╤ç╨╕╨║ ╨╕╨╖ ╤é╨░╨▒╨╗╨╕╤å╤ï ╨┐╤Ç╨╡╤Ç╤ï╨▓╨░╨╜╨╕╨╣
 
 	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to use memory outside of array (BreakPoint, ISR 3, SIG %i), and no any handler registered for this ISR, emulator exiting...", sig);
 	
@@ -182,7 +182,7 @@ static void sig_bus(int UNUSED sig) { // 7
 }
 
 static void sig_fpe(int UNUSED sig) { // 8
-	// TODO: вызывать тут обработчик из таблицы прерываний
+	// TODO: ╨▓╤ï╨╖╤ï╨▓╨░╤é╤î ╤é╤â╤é ╨╛╨▒╤Ç╨░╨▒╨╛╤é╤ç╨╕╨║ ╨╕╨╖ ╤é╨░╨▒╨╗╨╕╤å╤ï ╨┐╤Ç╨╡╤Ç╤ï╨▓╨░╨╜╨╕╨╣
 
 	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to divide any number by zero (ZeroDivisionError, ISR 0, SIG %i), and no any handler registered for this ISR, emulator exiting...", sig);
 	
@@ -192,7 +192,7 @@ static void sig_fpe(int UNUSED sig) { // 8
 }
 
 static void sig_segv(int UNUSED sig) { // 11
-	// TODO: вызывать тут обработчик из таблицы прерываний
+	// TODO: ╨▓╤ï╨╖╤ï╨▓╨░╤é╤î ╤é╤â╤é ╨╛╨▒╤Ç╨░╨▒╨╛╤é╤ç╨╕╨║ ╨╕╨╖ ╤é╨░╨▒╨╗╨╕╤å╤ï ╨┐╤Ç╨╡╤Ç╤ï╨▓╨░╨╜╨╕╨╣
 
 	emulator_log(true, LOG_SEVERITY_ERROR, "Tried to use memory outside of array, or an emulator error (SegmentationFaultError, ISR 5, SIG %i), and no any handler registered for this ISR, emulator exiting...", sig);
 	
@@ -210,7 +210,7 @@ static void sig_term(int UNUSED sig) { // 15
 }
 
 static void sig_stkflt(int UNUSED sig) { // 16
-	// TODO: вызывать тут обработчик из таблицы прерываний
+	// TODO: ╨▓╤ï╨╖╤ï╨▓╨░╤é╤î ╤é╤â╤é ╨╛╨▒╤Ç╨░╨▒╨╛╤é╤ç╨╕╨║ ╨╕╨╖ ╤é╨░╨▒╨╗╨╕╤å╤ï ╨┐╤Ç╨╡╤Ç╤ï╨▓╨░╨╜╨╕╨╣
 
 	emulator_log(true, LOG_SEVERITY_ERROR, "FPU Stack error (X87FPUError, ISR 16, SIG %i), and no any handler registered for this ISR, emulator exiting...", sig);
 	

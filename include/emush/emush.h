@@ -34,6 +34,7 @@ int clear_cmd(const byte** argv, size_t argc);
 int echo_cmd(const byte** argv, size_t argc);
 int history_cmd(const byte** argv, size_t argc);
 int ls_cmd(const byte** argv, size_t argc);
+int mv_cmd(const byte** argv, size_t argc);
 int touch_cmd(const byte** argv, size_t argc);
 int cat_cmd(const byte** argv, size_t argc);
 

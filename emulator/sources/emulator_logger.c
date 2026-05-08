@@ -23,10 +23,10 @@
 #endif
 
 static log_severity_e min_log_severity = LOG_SEVERITY_VERBOSE;
-static log_severity_e max_log_severity = 10; // 0 для отключения логов
+static log_severity_e max_log_severity = 10; // 0 ╨┤╨╗╤Å ╨╛╤é╨║╨╗╤Ä╤ç╨╡╨╜╨╕╤Å ╨╗╨╛╨│╨╛╨▓
 
 static log_severity_e min_log_severity_showing = 0;
-static log_severity_e max_log_severity_showing = 10; // 0 для отключения логов
+static log_severity_e max_log_severity_showing = 10; // 0 ╨┤╨╗╤Å ╨╛╤é╨║╨╗╤Ä╤ç╨╡╨╜╨╕╤Å ╨╗╨╛╨│╨╛╨▓
 
 static logger_t* cur = nullptr;
 
@@ -42,6 +42,8 @@ logger_t* init_emulator_logger() {
 	if (!logger->log_file) {
 		printf("Unable to open log file, log will be shadowing in stdout\n\r");
 	}
+
+	setbuf(stdout, nullptr);
 
 	cur = logger;
 
@@ -149,15 +151,15 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 	if ((!cur->log_file || mirror_stdout) && 
 		severity >= min_log_severity_showing && 
 		severity < max_log_severity_showing) {
-		if (cur->repeated_cnt == 0) {
+		// if (cur->repeated_cnt == 0) {
 			printf(default_style "\n\r[%f][%s]%s %s" default_style, ticks, severities_name[severity_index], severities_color[severity_index], cur->msg);
-		}
+		// }
 		
-		else {
-			if (cur->repeated_cnt == 1) printf("\n\r");
+		// else {
+		// 	if (cur->repeated_cnt == 1) printf("\n\r");
 
-			printf("\r" default_style "... and repeated %zu times" default_style, cur->repeated_cnt);
-		}
+		// 	printf("\r" default_style "... and repeated %zu times" default_style, cur->repeated_cnt);
+		// }
 
 		// fflush(stdout);
 

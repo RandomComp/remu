@@ -58,12 +58,14 @@ int ata_cmd(const byte** argv, size_t argc) {
 		
 		kprintf("\tSerial number: %s\n", serial_number);
 
-		kprintf("\tLast error: %s\n", ata_get_error());
+		kprintf("\tLast error: %s\n", ata_err_description(ata_read_status()));
 
 		return 0;
 	}
 
 	else if (strcmp(action, "dump") == 0) {
+		size_t rows = get_rows();
+
 		byte buf[512] = { 0 };
 
 		size_t sector = 0;
@@ -80,9 +82,9 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 		print_hex(buf + (offset % 512), offset, 256);
 
-		// set_cursor_pos(0, ROWS - 1);
+		set_cursor_pos(0, rows - 1);
 
-		// kprintf("Sector: %zu", sector);
+		kprintf("Sector: %zu", sector);
 
 		byte c = getch();
 
@@ -102,9 +104,9 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 				print_hex(buf + (offset % 512), offset, 256);
 
-				// set_cursor_pos(0, ROWS - 1);
+				set_cursor_pos(0, rows - 1);
 
-				// kprintf("Sector: %zu", sector);
+				kprintf("Sector: %zu", sector);
 			}
 
 			if (c == '\x19') {
@@ -120,9 +122,9 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 				print_hex(buf + (offset % 512), offset, 256);
 
-				// set_cursor_pos(0, ROWS - 1);
+				set_cursor_pos(0, rows - 1);
 
-				// kprintf("Sector: %zu", sector);
+				kprintf("Sector: %zu", sector);
 			}
 
 			halt();

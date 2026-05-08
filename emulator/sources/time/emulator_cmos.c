@@ -183,6 +183,8 @@ static void update_cmos() {
 	cur->unix_time++;
 
 	cur->reg_a &= ~0x80;
+
+	emulator_log(true, LOG_SEVERITY_INFO, "new second");
 }
 
 cmos_t* init_cmos() {

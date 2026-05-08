@@ -12,6 +12,28 @@
 
 #include "math/math.h"
 
+static const byte errors[] = {
+	ATA_ERR_BADBLK,
+	ATA_ERR_UNC_DATA,
+	ATA_ERR_MEDIA_CHANGED,
+	ATA_ERR_ID_NOT_FOUND,
+	ATA_ERR_MEDIA_CHANGED_RQ,
+	ATA_ERR_ABORT,
+	ATA_ERR_TRACK_0_NOT_FOUND,
+	ATA_ERR_ADDRESS_MARK_NOT_FOUND,
+};
+
+static const byte* errors_descriptions[] = {
+	"bad block",
+	"uncorrected data",
+	"media changed",
+	"sector not found",
+	"media change request",
+	"operation not supported",
+	"cannot found 0 track",
+	"address mark not found",
+};
+
 void ata_wait_until_state(byte _state) {
 	byte state = in8(ATA_STATUS);
 
@@ -19,7 +41,7 @@ void ata_wait_until_state(byte _state) {
 		state = in8(ATA_STATUS);
 
 		if ((state & ATA_SR_ERR) != 0) {
-			kprintf("%vfbrATA error: %s\n", ata_get_error());
+			kprintf("%vfbrATA error: %s\n", ata_err_description(state));
 
 			kprintf("%vfbrATA status: %b\n", state);
 
@@ -39,7 +61,7 @@ void ata_wait_not_until_state(byte _state) {
 		state = in8(ATA_STATUS);
 
 		if ((state & ATA_SR_ERR) != 0) {
-			kprintf("%vfbrATA error: %s\n", ata_get_error());
+			kprintf("%vfbrATA error: %s\n", ata_err_description(state));
 
 			kprintf("%vfbrATA status: %b\n", state);
 
@@ -121,30 +143,13 @@ void ata_flush() {
 	ata_wait_not_until_state(ATA_SR_BSY);
 }
 
-byte* ata_get_error() {
-	const byte* errors_descriptions[] = {
-		"bad block",
-		"uncorrected data",
-		"media changed",
-		"sector not found",
-		"media change request",
-		"operation not supported",
-		"cannot found 0 track",
-		"address mark not found",
-	};
+byte ata_read_status(void) {
+	return in8(ATA_STATUS);
+}
 
-	const byte errors[] = {
-		ATA_ERR_BADBLK,
-		ATA_ERR_UNC_DATA,
-		ATA_ERR_MEDIA_CHANGED,
-		ATA_ERR_ID_NOT_FOUND,
-		ATA_ERR_MEDIA_CHANGED_RQ,
-		ATA_ERR_ABORT,
-		ATA_ERR_TRACK_0_NOT_FOUND,
-		ATA_ERR_ADDRESS_MARK_NOT_FOUND,
-	};
-
-	byte status = in8(ATA_STATUS);
+byte* ata_err_description(byte status) {
+	if (status == 0xFF)
+		return "No disk.";
 
 	if ((status & ATA_SR_ERR) != 0) {
 		byte errcode = in8(ATA_ERROR_REG);

@@ -17,8 +17,17 @@ uint32 pci_read_config(byte bus, byte slot, byte func, byte offset) {
 }
 
 static pci_device_name_t device_names[] = {
-	{PCI_STORAGE, 		PCI_STORAGE_IDE, 				"IDE Hard Disk"},
-	{PCI_STORAGE, 		PCI_STORAGE_AHCI, 				"AHCI Hard Disk"},
+	{PCI_STORAGE, 		PCI_STORAGE_SCSI, 				"SCSI Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_IDE, 				"IDE Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_FLOPPY, 			"Floppy Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_IPI, 				"IPI Bus Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_RAID_BUS, 			"RAID Bus Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_ATA, 				"ATA Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_SATA, 				"SATA Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_SRL_ATCH_SCSI, 		"Serial Attached SCSI Controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_NON_VLTL_MMR, 		"Non-Volatile memory controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_FLASH_MEMORY, 		"Flash Storage controller"},
+	{PCI_STORAGE, 		PCI_STORAGE_CONTROLLER, 		"Storage controller"},
 
 	{PCI_NETWORK, 		PCI_NETWORK_ETHERNET, 			"Ethernet controller"},
 	{PCI_NETWORK, 		PCI_NETWORK_TOKEN_RING, 		"Token ring controller"},
@@ -32,6 +41,9 @@ static pci_device_name_t device_names[] = {
 	{PCI_NETWORK, 		PCI_NETWORK_CONTROLLER, 		"Network controller"},
 
 	{PCI_DISPLAY, 		PCI_DISPLAY_VGA, 				"VGA Compatible GPU"},
+	{PCI_DISPLAY, 		PCI_DISPLAY_XGA, 				"XGA Compatible GPU"},
+	{PCI_DISPLAY, 		PCI_DISPLAY_3D, 				"3D Accelerator (GPU)"},
+	{PCI_DISPLAY, 		PCI_DISPLAY_CONTROLLER, 		"Display Controller"},
 
 	{PCI_MULTIMEDIA, 	PCI_MULTIMEDIA_VIDEO_CONTROLLER,"Video controller"},
 	{PCI_MULTIMEDIA, 	PCI_MULTIMEDIA_AUDIO_CONTROLLER,"Audio controller"},
@@ -52,7 +64,24 @@ static pci_device_name_t device_names[] = {
 	{PCI_BRIDGE, 		PCI_BRIDGE_INFINIBAND,			"InfiniBand to PCI host bridge"},
 	{PCI_BRIDGE, 		PCI_BRIDGE_BRIDGE,				"Bridge"},
 
-	{PCI_SERIAL_BUS, 	PCI_SERIAL_BUS_USB, 			"USB Serial"},
+	{PCI_SERIAL, 		PCI_SERIAL_FIREWIRE, 			"FireWire (IEEE 1394)"},
+	{PCI_SERIAL, 		PCI_SERIAL_ACCESS_BUS, 			"ACCESS Bus"},
+	{PCI_SERIAL, 		PCI_SERIAL_SSA, 				"SSA"},
+	{PCI_SERIAL, 		PCI_SERIAL_USB, 				"USB Serial"},
+	{PCI_SERIAL, 		PCI_SERIAL_FIBRE, 				"Fibre controller"},
+	{PCI_SERIAL, 		PCI_SERIAL_SMBUS, 				"SMBus"},
+	{PCI_SERIAL, 		PCI_SERIAL_INFINIBAND, 			"InfiniBand"},
+	{PCI_SERIAL, 		PCI_SERIAL_IPMI, 				"IPMI Interface"},
+	{PCI_SERIAL, 		PCI_SERIAL_SERCOS, 				"SERCOS Interface"},
+	{PCI_SERIAL, 		PCI_SERIAL_CANBUS, 				"CANBUS"},
+	{PCI_SERIAL, 		PCI_SERIAL_MIPI_I3C, 			"MIPI I3C"},
+	{PCI_SERIAL, 		PCI_SERIAL_CONTROLLER, 			"Serial Controller"},
+
+	{PCI_ENCR_CONTR, 	PCI_ENCR_NET_COMPUTE,			"Network and computing encryption device"},
+	{PCI_ENCR_CONTR, 	PCI_ENCR_ENTERTAINMENT,			"Entertainment encryption device"},
+	{PCI_ENCR_CONTR, 	PCI_ENCR_CONTROLLER,			"Encryption controller"},
+
+	{PCI_NON_ESSNTL, 	0x00,							"Non-essential instrumentation"},
 
 	{0},
 };
@@ -152,11 +181,22 @@ static pci_vendor_t vendor_names[] = {
 	{
 		PCI_VENDOR_NVIDIA,
 		0x1F0A,
-		0,
-		0,
+		0x1043,
+		0x879C,
 		"NVIDIA",
 		"GTX 1650",
-		0, 0,
+		"ASUS",
+		"TUF GTX 1650 Gaming",
+	},
+	{
+		PCI_VENDOR_NVIDIA,
+		0x10F9,
+		0x1043,
+		0x879C,
+		"NVIDIA",
+		"TU106 High Definition Audio Controller",
+		"ASUS",
+		"TUF GTX 1650 Gaming High Definition Audio Controller",
 	},
 	{
 		PCI_VENDOR_ENSONIQ,
@@ -266,7 +306,7 @@ static pci_vendor_t vendor_names[] = {
 		"Intel",
 		"82371AB/EB/MB PIIX4 IDE",
 		"VMware",
-		0,
+		"VMware 82371AB/EB/MB PIIX4 IDE",
 	},
 	{
 		PCI_VENDOR_VMWARE,
@@ -277,28 +317,226 @@ static pci_vendor_t vendor_names[] = {
 		0, 0,
 	},
 	{
+		PCI_VENDOR_AMD,
+		0x1485,
+		0, 0,
+		"AMD",
+		"Starship/Matisse Reserved SPP (System Platform Processor)",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x148A,
+		0, 0,
+		"AMD",
+		"Starship/Matisse PCIe Dummy Function",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_KIOXIA,
+		0x0001,
+		PCI_VENDOR_KIOXIA,
+		0x0001,
+		"KIOXIA",
+		"NVMe SSD Controller BG4 (DRAM-less)",
+		"KIOXIA",
+		"NVMe SSD Controller BG4 (DRAM-less)",
+	},
+	{
+		PCI_VENDOR_MEDIATEK,
+		0x0616,
+		PCI_VENDOR_MEDIATEK,
+		0x0616,
+		"MediaTek",
+		"MT7922 802.11ax PCI Express Wireless Network Adapter",
+		"MediaTek",
+		"MT7922 802.11ax PCI Express Wireless Network Adapter",
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x43EA,
+		0, 0,
+		"AMD",
+		"500 Series Chipset Switch Downstream Port",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x43E9,
+		0, 0,
+		"AMD",
+		"500 Series Chipset Switch Upstream Port",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x43EE,
+		0x1B21,
+		0x1142,
+		"AMD",
+		"500 Series Chipset USB 3.1 XHCI Controller",
+		"ASMedia",
+		"ASM1042A USB 3.0 Host Controller",
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x43EE,
+		0x1B21,
+		0x1062,
+		"AMD",
+		"500 Series Chipset SATA Controller",
+		"ASMedia",
+		"ASM1062 Serial ATA Controller",
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1440,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 0",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1441,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 1",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1442,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 2",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1443,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 3",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1444,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 4",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1445,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 5",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1446,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 6",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1447,
+		0, 0,
+		"AMD",
+		"Matisse/Vermeer Data Fabric: Device 18h; Function 7",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1482,
+		0, 0,
+		"AMD",
+		"Starship/Matisse PCIe Dummy Host Bridge",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1483,
+		0x01DE,
+		0xFFF9,
+		"AMD",
+		"Starship/Matisse GPP Bridge",
+		"Gimlet/Cosmo",
+		"Baseboard",
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1484,
+		0, 0,
+		"AMD",
+		"Starship/Matisse Internal PCIe GPP Bridge 0 to bus",
+		0, 0,
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x790B,
+		0x1462,
+		0x7C91,
+		"AMD",
+		"FCH SMBus Controller",
+		"MSI", 
+		"MS-7C91 FCH SMBus Controller",
+	},
+	{
+		PCI_VENDOR_AMD,
+		0x1480,
+		0x1462,
+		0x7C91,
+		"AMD",
+		"Starship/Matisse Root Complex",
+		"MSI", 
+		"MS-7C91 Starship/Matisse Root Complex",
+	},
+	{
+		PCI_VENDOR_INTEL,
+		0x7111,
+		PCI_VENDOR_EMU,
+		0x8263,
+		"Intel",
+		"82371AB/EB/MB PIIX4 IDE",
+		"Emulator",
+		"Emulator PIIX4 IDE",
+	},
+	{
 		PCI_VENDOR_EMU,
 		0x4444,
-		0, 0,
+		PCI_VENDOR_EMU,
+		0x4444,
 		"Emulator",
 		"Basic VESA Graphical GPU",
-		0, 0,
+		"Emulator",
+		"Basic VESA Graphical GPU",
 	},
 	{
 		PCI_VENDOR_EMU,
 		0x5244,
-		0, 0,
+		PCI_VENDOR_EMU,
+		0x5244,
 		"Emulator",
 		"Basic VGA Text GPU",
-		0, 0,
+		"Emulator",
+		"Basic VGA Text GPU",
 	},
 	{
 		PCI_VENDOR_EMU,
 		0x8263,
-		0, 0,
+		PCI_VENDOR_EMU,
+		0x8263,
 		"Emulator",
 		"HDD ATA PIO",
-		0, 0,
+		"Emulator",
+		"HDD ATA PIO",
 	},
 	{0},
 };
@@ -398,16 +636,11 @@ void pci_show_device_info(byte bus, byte slot, byte func) {
 	size_t info_cnt = MIN(info_categories_cnt, data_cnt);
 
 	snprintf(data[0], 64, "%s (0x%.2x, 0x%.2x)", name, category, subclass);
-
-	snprintf(data[1], 64, "%s (0x%.2x)", vendor_name, vendor_id);
-
-	snprintf(data[2], 64, "%s (0x%.2x)", device_name, device_id);
-
-	snprintf(data[3], 64, "%s (0x%.2x)", subsys_vendor_name, subsys_vendor_id);
-
-	snprintf(data[4], 64, "%s (0x%.2x)", subsys_device_name, subsys_device_id);
-
-	snprintf(data[5], 64, "%.2x:%.2x:%.2x", bus, slot, func);
+	snprintf(data[1], 64, "%s (0x%.4x)", vendor_name, vendor_id);
+	snprintf(data[2], 64, "%s (0x%.4x)", device_name, device_id);
+	snprintf(data[3], 64, "%s (0x%.4x)", subsys_vendor_name, subsys_vendor_id);
+	snprintf(data[4], 64, "%s (0x%.4x)", subsys_device_name, subsys_device_id);
+	snprintf(data[5], 64, "0x%.2x:0x%.2x:0x%.2x", bus, slot, func);
 
 	ssize_t info_category_max_len = 0;
 
@@ -435,36 +668,42 @@ void pci_show_device_info(byte bus, byte slot, byte func) {
 
 	ssize_t old_info_max_len = info_max_len;
 
-	if (table_width >= COLUMNS) {
-		info_max_len -= table_width - COLUMNS + 2;
+	size_t columns = get_columns();
+
+	size_t rows = get_rows();
+
+	if (table_width >= columns) {
+		info_max_len -= table_width - columns + 2;
 	}
 
 	info_category_max_len += 2;
 
 	info_max_len += 2;
 
-	ssize_t center = (COLUMNS / 2) - (info_category_max_len + 1 + info_max_len) / 2;
+	ssize_t center = (columns / 2) - (info_category_max_len + 1 + info_max_len) / 2;
 
-	kprintf("Ú%0mÄ*s¿\n", info_category_max_len + 1 + info_max_len, "");
+	kprintf("%*sâ”Œ%0mâ”€*sâ”\n", center, "", info_category_max_len + 1 + info_max_len, "");
 
-	kprintf("³%=*s³\n", info_category_max_len + 1 + info_max_len, data[0]);
+	kprintf("%*sâ”‚%=*sâ”‚\n", center, "", info_category_max_len + 1 + info_max_len, data[0]);
 
-	kprintf("Ã%0mÄ*sÂ%0mÄ*s´\n", info_category_max_len, "", info_max_len, "");
+	kprintf("%*sâ”œ%0mâ”€*sâ”¬%0mâ”€*sâ”¤\n", center, "", info_category_max_len, "", info_max_len, "");
 
 	for (size_t i = 1; i < info_cnt; i++) {
 		byte* info_category = info_categories[i];
 
 		byte* info_data = data[i];
 
-		bool dots = (1 + 1 + info_category_max_len + 1 + 1 + strlen(info_data) + 1 + 1) >= COLUMNS;
+		bool dots = (1 + 1 + info_category_max_len + 1 + 1 + strlen(info_data) + 1 + 1) >= columns;
 
-		kprintf("³ %vfby%*.*s%vd ³ %vfbg%-*.*s%vd%s ³\n", info_category_max_len - 2, info_category_max_len - 2, info_category, info_max_len - 2 - (dots ? 4 : 0), info_max_len - 2 - (dots ? 4 : 0), info_data, dots ? " ..." : "");
+		kprintf("%*sâ”‚ %vfby%-*...*s%vd â”‚ %vfbg%*...*s%vd â”‚\n", center, "", info_category_max_len - 2, info_category_max_len - 2, info_category, info_max_len - 2, info_max_len - 2, info_data);
 	}
 
-	kprintf("À%0mÄ*sÁ%0mÄ*sÙ\n", info_category_max_len, "", info_max_len, "");
+	kprintf("%*sâ””%0mâ”€*sâ”´%0mâ”€*sâ”˜\n", center, "", info_category_max_len, "", info_max_len, "");
 }
 
 void pci_scan(void) {
+	size_t columns = get_columns();
+
 	size_t pci_devices_cnt = 0;
 
 	for (size_t bus = 0; bus < 256; bus++) {
@@ -478,7 +717,7 @@ void pci_scan(void) {
 
 				pci_devices_cnt += 1;
 
-				kprintf("Press any key to continue...\n");
+				kprintf("%=*s\n", columns, "Press any key to continue...");
 
 				blkgetch();
 			}
@@ -489,8 +728,7 @@ void pci_scan(void) {
 
 	size_t writed = snprintf(buf, 64, "PCI devices count: %zu", pci_devices_cnt);
 
-	size_t center = (COLUMNS / 2) - (writed / 2);
+	size_t center = (columns / 2) - (writed / 2);
 
 	kprintf("%vfbg%0m=*s%vd%.*s%vfbg%0m=*s%vd\n", center, "", writed, buf, center, "");
 }
-                                                                    

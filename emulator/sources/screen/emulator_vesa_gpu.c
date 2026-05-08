@@ -32,8 +32,10 @@ vesa_device_t* init_vesa_device(_size_t width, _size_t height, _size_t bpp) {
 	vesa_device->pci_device = pci_init_device(
 		0, 0, 0,
 		PCI_DISPLAY, PCI_DISPLAY_VGA,
-		PCI_VENDOR_EMU, 0x4444,
-		0, 0
+		PCI_VENDOR_EMU,
+		0x4444,
+		PCI_VENDOR_EMU,
+		0x4444
 	);
 
 	pci_device_register(nullptr, vesa_device->pci_device);

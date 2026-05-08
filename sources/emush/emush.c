@@ -38,6 +38,7 @@ emush_cmd emush_commands[] = {
 	{"sfs", 		sfs_cmd},
 	{"pci", 		pci_cmd},
 	{"ls", 			ls_cmd},
+	{"mv", 			mv_cmd},
 	{"touch", 		touch_cmd},
 	{"cat", 		cat_cmd},
 	{"graphtest", 	graphtest_cmd},
@@ -57,23 +58,49 @@ static const size_t vars_max_cnt = MIN(sizeof(vars_name) / sizeof(vars_name[0]),
 int ls_cmd(const byte** argv, size_t argc) {
 	size_t files_cnt = 0;
 
-	byte* files = sfs_list_files(ATA_MASTER, &files_cnt);
+	byte files[50 * 64] = { 0 };
 
-	if (!files) {
-		kprintf("Unavailable.\n");
+	memset(files, 0, sizeof(files));
+	
+	sfs_error_e err = sfs_list_files(ATA_MASTER, &files_cnt, files, 64);
+
+	if (err != SFS_OK) {
+		kprintf("%s: %vfbrSFS list files error: %s.\n", argv[0], sfs_err_description(err));
+		
+		return err;
+	}
+
+	for (size_t i = 0; i < files_cnt; i++) {
+		size_t file_size = 0;
+
+		sfs_read_file(ATA_MASTER, files + (i * 64), nullptr, 0, -1, &file_size);
+
+		kprintf("\"%s\" ~%zu.%zu KiB\n", files + (i * 64), file_size / 1024, (file_size / 102) % 10);
+	}
+
+	return 0;
+}
+
+int mv_cmd(const byte** argv, size_t argc) {
+	if (argc < 3) {
+		kprintf("%vfbrToo few arguments for \"mv\", arguments: source file name and destination file name\n");
 		
 		return -1;
 	}
 
-	for (size_t i = 0; i < files_cnt; i++) {
-		kprintf("\"%s\"\n", files + (i * 64));
+	sfs_error_e err = sfs_rename_file(ATA_MASTER, argv[1], argv[2]);
+
+	if (err != SFS_OK) {
+		kprintf("%s: %vfbrSFS rename error: %s\n", argv[0], sfs_err_description(err));
+
+		return err;
 	}
 
 	return 0;
 }
 
 int touch_cmd(const byte** argv, size_t argc) {
-	if (argc < 2) {
+	if (argc < 3) {
 		kprintf("%vfbrToo few arguments for \"touch\", arguments: file name and text\n");
 		
 		return -1;
@@ -81,37 +108,36 @@ int touch_cmd(const byte** argv, size_t argc) {
 
 	const byte* content = argv[2]; size_t content_size = strlen(content);
 
-	sfs_error_e error = sfs_create_file(ATA_MASTER, argv[1], content, content_size);
+	sfs_error_e err = sfs_create_file(ATA_MASTER, argv[1], content, content_size);
 
-	if (error == SFS_ERROR_FILE_EXISTS) {
-		kprintf("touch: %vfbr%s: file already exists\n", argv[1]);
+	if (err != SFS_OK) {
+		kprintf("%s: %vfbrSFS create file error: %s.\n", argv[0], sfs_err_description(err));
+		
+		return err;
 	}
 
-	else if (error == SFS_ERROR_NOT_ENGH_MMRY) {
-		kprintf("touch: %vfbr%s: is not enough space available on the disk\n", argv[1]);
-	}
-
-	return error;
+	return err;
 }
 
 int cat_cmd(const byte** argv, size_t argc) {
 	sfs_error_e result_error = SFS_OK;
 
 	for (size_t i = 1; i < argc; i++) {
-		byte content[507 * 8] = { 0 };
+		byte content[4484] = { 0 };
 
 		size_t readed = 0;
 
-		sfs_error_e error = sfs_read_file(ATA_MASTER, argv[i], content, 507 * 8, &readed);
+		sfs_error_e err = sfs_read_file(ATA_MASTER, argv[i], content, 0, 4484, &readed);
 
-		if (result_error == SFS_OK)
-			result_error = error;
-
-		if (error == SFS_ERROR_FILE_NOT_EXISTS) {
-			kprintf("cat: %vfbr\"%s\": no such file\n", argv[i]); continue;
+		if (err != SFS_OK) {
+			kprintf("%s: %vfbrSFS read file error: %s.\n", argv[0], sfs_err_description(err));
+			
+			return err;
 		}
 
 		kprintf("%.*s\n", readed, content);
+
+		kprintf("readed: %zu\n", readed);
 	}
 
 	kprint("\n\r");
@@ -120,22 +146,26 @@ int cat_cmd(const byte** argv, size_t argc) {
 }
 
 void graphtest() {
+	size_t columns = get_columns();
+
+	size_t rows = get_rows();
+
 	byte src_style = get_style();
 
 	disable_blink();
 	
-	for (size_t i = 0; i < ROWS; i++) {
-		for (size_t j = 0; j < COLUMNS; j++) {
+	for (size_t i = 0; i < rows; i++) {
+		for (size_t j = 0; j < columns; j++) {
 			set_style(0x00);
 
 			set_cursor_pos(j, i);
 
 			float x = j; float y = i;
 
-			x = (((float)x / (float)COLUMNS) * 2.0f) - 1.0f;
-			y = (((float)y / (float)ROWS) * 2.0f) - 1.0f;
+			x = (((float)x / (float)columns) * 2.0f) - 1.0f;
+			y = (((float)y / (float)rows) * 2.0f) - 1.0f;
 
-			x *= ((float)COLUMNS / (float)ROWS) / ((float)16 / (float)8);
+			x *= ((float)columns / (float)rows) / ((float)16 / (float)8);
 			
 			if ((x * x + y * y) < 0.5f) {
 			}
@@ -149,7 +179,7 @@ void graphtest() {
 
 	const c_str msg = "Press 'q' to quit"; size_t msg_len = strlen(msg);
 
-	size_t spaces = (COLUMNS / 2) - (msg_len / 2);
+	size_t spaces = (columns / 2) - (msg_len / 2);
 
 	for (size_t i = 0; i < spaces; i++) {
 		putch(' ');
@@ -221,11 +251,11 @@ int set_cmd(const byte** argv, size_t argc) {
 		}
 	}
 
-	kprintf("Ú%0mÄ*s¿\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "");
+	kprintf("â”Œ%0mâ”€*sâ”\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "");
 
-	kprintf("³%vfbq%=*s%vd³\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "emush variables");
+	kprintf("â”‚%vfbq%=*s%vdâ”‚\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "emush variables");
 
-	kprintf("Ã%0mÄ*sÂ%0mÄ*s´\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
+	kprintf("â”œ%0mâ”€*sâ”¬%0mâ”€*sâ”¤\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
 
 	for (size_t i = 0; i < vars_max_cnt; i++) {
 		byte* name = vars_name[i];
@@ -234,10 +264,10 @@ int set_cmd(const byte** argv, size_t argc) {
 		if ((!name || name[0] == 0) ||
 			(!value || value[0] == 0)) break;
 
-		kprintf("³ %vfby%*s%vd ³ %vfbg%*s%vd ³\n", max_var_name_len, name, max_var_value_len, value);
+		kprintf("â”‚ %vfby%-*s%vd â”‚ %vfbg%-*s%vd â”‚\n", max_var_name_len, name, max_var_value_len, value);
 	}
 
-	kprintf("À%0mÄ*sÁ%0mÄ*sÙ\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
+	kprintf("â””%0mâ”€*sâ”´%0mâ”€*sâ”˜\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
 		
 	return 0;
 }

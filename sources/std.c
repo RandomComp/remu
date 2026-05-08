@@ -16,36 +16,454 @@
 
 #include "kernel.h"
 
-#define vidmem_size (COLUMNS * STD_ROWS)
+static terminal_out_t stdout = { 0 };
 
-static uint16* vidmem = nullptr;
-
-static byte cur_style = 0x0F;
+static terminal_in_t stdin = { 0 };
 
 static ssize_t cur_x = 0, cur_y = 0;
 
-void init_std(uint16* _vidmem) {
-	cur_style = 0x0F;
+static byte cur_style = 0;
 
+void init_std(terminal_out_t _stdout, terminal_in_t _stdin) {
 	cur_x = 0, cur_y = 0;
 
-	vidmem = _vidmem;
+	stdout = _stdout;
+
+	stdin = _stdin;
+
+	cur_style = 0x0F;
 }
 
-void clear_screen(byte style) {
-	if (!vidmem) return;
+byte getch(void) {
+	if (stdin.getch)
+		return stdin.getch();
 
-	set_cursor_pos(0, 0);
+	return 0;
+}
 
-	for (size_t i = 0; i < VGA_VIDMEM_SIZE; i++) {
-		vidmem[i] = (uint16)style << 8;
+size_t getstr(bool show, byte* buf, size_t buf_size) {
+	ssize_t index = 0;
+
+	ssize_t cur_x = 0, cur_y = 0;
+		
+	get_cursor_pos(&cur_x, &cur_y);
+
+	memset(buf, 0, buf_size);
+
+	while (index < buf_size) {
+		byte c = 0;
+
+		while (!c) {
+			c = getch();
+
+			halt();
+		}
+
+		if (c == '\r') {
+			buf[index] = '\0'; index = buf_size; break;
+		}
+
+		else if (c == '\b') {
+			if (index >= 1) {
+				index -= 1;
+
+				size_t last_i = strlen(buf) - 1;
+
+				if (index == last_i) {
+					buf[index] = ' ';
+				}
+
+				else for (size_t i = index; i < last_i; i++) {
+					buf[i] = buf[i + 1];
+				}
+
+				buf[last_i] = '\0';
+			}
+		}
+
+		else if (c == '\x1A') {
+			index = MIN(index + 1, strlen(buf));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\x1B') {
+			index = MAX(0, MIN(index - 1, strlen(buf)));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else {
+			buf[index] = c;
+			
+			index += 1;
+		}
+
+		set_cursor_pos(cur_x, cur_y);
+		crt_set_cursor_pos(cur_x, cur_y);
+		clear_line();
+		kprint(buf);
+	}
+
+	kprint("\n");
+
+	return index;
+}
+
+#include "drivers/memory/memory.h"
+
+static byte inputed_buf[64] = { 0 };
+
+byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t command_index, size_t history_size) {
+	ssize_t index = 0;
+
+	ssize_t cur_x = 0, cur_y = 0;
+		
+	get_cursor_pos(&cur_x, &cur_y);
+
+	byte* buf = history[command_index];
+
+	memset(buf, 0, 64);
+
+	size_t inputed_size = 0;
+
+	bool cur_is_inputed = true;
+
+	while (index < 64) {
+		byte c = 0;
+
+		while (!c) {
+			c = getch();
+
+			halt();
+		}
+
+		if (c == '\x18') {
+			bool ok = false;
+
+			for (ssize_t i = command_index - 1; i >= 0; i--) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; ok = true; break;
+				}
+			}
+
+			size_t buf_len = strlen(buf);
+
+			if (ok) {
+				if (cur_is_inputed) {
+					inputed_size = buf_len;
+
+					memset(inputed_buf, 0, 64);
+
+					memcpy(inputed_buf, buf, buf_len);
+
+					cur_is_inputed = true;
+				}
+
+				memcpy(buf, history[command_index], 64);
+					
+				index = strlen(buf);
+
+				cur_is_inputed = false;
+			}
+		}
+
+		else if (c == '\x19') {
+			size_t history_len = 0;
+
+			for (ssize_t i = history_size - 1; i >= 0; i--) {
+				if (strlen(history[i]) != 0) {
+					history_len++;
+				}
+			}
+
+			bool ok = false;
+
+			for (ssize_t i = command_index + 1; i < history_size; i++) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; ok = true; break;
+				}
+			}
+
+			size_t buf_len = strlen(buf);
+
+			if (!ok || command_index >= history_len) {
+				// kprint("\n\r"); print_hex(inputed, 0, 20);
+
+				buf = inputed_buf;
+				
+				index = MIN(64, inputed_size);
+
+				command_index = history_size;
+			}
+
+			else {
+				if (cur_is_inputed) {
+					inputed_size = buf_len;
+
+					memset(inputed_buf, 0, 64);
+
+					memcpy(inputed_buf, buf, buf_len);
+
+					cur_is_inputed = true;
+				}
+
+				buf = history[command_index];
+				
+				index = strlen(buf);
+
+				cur_is_inputed = false;
+			}
+		}
+
+		else if (c == '\x1A') {
+			index = MIN(index + 1, strlen(buf));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\x1B') {
+			index = MAX(0, MIN(index - 1, strlen(buf)));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\r') {
+			index = strlen(buf);
+
+			break;
+		}
+
+		else if (c == '\b') {
+			if (index >= 1) {
+				index -= 1;
+
+				size_t last_i = strlen(buf) - 1;
+
+				if (index == last_i) {
+					buf[index] = ' ';
+				}
+
+				else for (size_t i = index; i < last_i; i++) {
+					buf[i] = buf[i + 1];
+				}
+
+				buf[last_i] = '\0';
+			}
+
+			cur_is_inputed = true;
+		}
+
+		else {
+			if (index < strlen(buf)) {
+				byte temp_buf[512] = { 0 };
+
+				memcpy(temp_buf, buf + index, strlen(buf) - index);
+
+				for (size_t i = index; i < strlen(buf); i++) {
+					buf[i + 1] = temp_buf[i - index];
+				}
+			}
+
+			buf[index] = c;
+			
+			index += 1;
+
+			cur_is_inputed = true;
+		}
+
+		set_cursor_pos(cur_x, cur_y);
+		crt_set_cursor_pos(cur_x + index, cur_y);
+		clear_line();
+		kprint(buf);
+	}
+
+	// if (inputed) {
+	// 	kfree(inputed); inputed = nullptr;
+	// }
+
+	kprint("\n");
+
+	if (_inputed_size)
+		*_inputed_size = index;
+
+	return buf;
+}
+
+size_t getstr_hist_with_auto_add_on(bool show, byte* buf, size_t buf_size, byte history[][64], ssize_t command_index, size_t history_len) {
+	ssize_t index = 0;
+
+	ssize_t cur_x = 0, cur_y = 0;
+		
+	get_cursor_pos(&cur_x, &cur_y);
+
+	memset(buf, 0, buf_size);
+
+	while (index < buf_size) {
+		byte c = 0;
+
+		while (!c) {
+			c = getch();
+
+			halt();
+		}
+
+		if (c == '\x18') {
+			for (ssize_t i = (command_index) - 1; i >= 0; i--) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; break;
+				}
+			}
+
+			memcpy(buf, history[command_index], buf_size);
+				
+			index = strlen(buf);
+		}
+
+		else if (c == '\x19') {
+			for (ssize_t i = (command_index) + 1; i < history_len; i++) {
+				if (strlen(history[i]) != 0) {
+					command_index = i; break;
+				}
+			}
+
+			memcpy(buf, history[command_index], buf_size);
+			
+			index = strlen(buf);
+		}
+
+		else if (c == '\x1A') {
+			index = MIN(index + 1, strlen(buf));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\x1B') {
+			index = MAX(0, MIN(index - 1, strlen(buf)));
+			
+			crt_set_cursor_pos(cur_x + index, cur_y);
+			
+			continue;
+		}
+
+		else if (c == '\r') {
+			index = strlen(buf);
+
+			break;
+		}
+
+		else if (c == '\b') {
+			if (index >= 1) {
+				index -= 1;
+
+				size_t last_i = strlen(buf) - 1;
+
+				if (index == last_i) {
+					buf[index] = ' ';
+				}
+
+				else for (size_t i = index; i < last_i; i++) {
+					buf[i] = buf[i + 1];
+				}
+
+				buf[last_i] = '\0';
+			}
+		}
+
+		else {
+			if (index < strlen(buf)) {
+				byte temp_buf[512] = { 0 };
+
+				memcpy(temp_buf, buf + index, strlen(buf) - index);
+
+				for (size_t i = index; i < strlen(buf); i++) {
+					buf[i + 1] = temp_buf[i - index];
+				}
+			}
+
+			buf[index] = c;
+			
+			index += 1;
+		}
+
+		set_cursor_pos(cur_x, cur_y);
+		crt_set_cursor_pos(cur_x + index, cur_y);
+		clear_line();
+		kprint(buf);
+	}
+
+	kprint("\n");
+
+	return index;
+}
+
+byte blkgetch(void) {
+	byte result = 0;
+
+	while (!result) {
+		result = getch();
+
+		halt();
+	}
+
+	return result;
+}
+
+void set_style(byte style) {
+	cur_style = style;
+}
+
+byte get_style(void) {
+	return cur_style;
+}
+
+byte get_style_from(size_t column, size_t row) {
+	if (stdout.get_style)
+		return stdout.get_style(column, row);
+	
+	return 0;
+}
+
+byte getch_from(size_t column, size_t row) {
+	if (stdout.getch)
+		return stdout.getch(column, row);
+	
+	return 0;
+}
+
+size_t get_columns(void) {
+	return stdout.columns;
+}
+
+size_t get_rows(void) {
+	return stdout.rows;
+}
+
+void setch(size_t column, size_t row, byte style, byte c) {
+	if (stdout.setch) {
+		stdout.setch(column, row, style, c);
 	}
 }
 
 void putch(byte c) {
-	if (!vidmem) return;
+	size_t columns = get_columns();
 
-	ssize_t cur_pos = (cur_y * COLUMNS) + cur_x;
+	size_t rows = get_rows();
+
+	if (columns <= 0 || rows <= 0)
+		return;
+
+	ssize_t cur_pos = (cur_y * columns) + cur_x;
 	
 	switch (c) {
 		case '\b':
@@ -62,32 +480,58 @@ void putch(byte c) {
 		
 		default:
 			if (cur_pos >= 0 && cur_pos < VGA_VIDMEM_SIZE)
-				vidmem[cur_pos] = cur_style << 8 | c;
+				setch(cur_x, cur_y, cur_style, c);
 
 			cur_x += 1;
 	}
 
-	cur_pos = CLAMP((cur_y * COLUMNS) + cur_x, 0, COLUMNS * ROWS);
+	cur_pos = CLAMP((cur_y * columns) + cur_x, 0, columns * get_rows());
 
-	set_cursor_pos(cur_pos % COLUMNS, cur_pos / COLUMNS);
+	size_t column = columns > 0 ? cur_pos % columns : 0;
+	size_t row = columns > 0 ? cur_pos / columns : 0;
 
-	while (cur_y >= ROWS) {
-		for (size_t i = 0; i < ROWS - 1; i++) {
+	set_cursor_pos(column, row);
+
+	while (cur_y >= rows) {
+		for (size_t i = 0; i < rows - 1; i++) {
 			size_t next_i = i + 1;
 
-			memcpy(vidmem + (i * COLUMNS), vidmem + (next_i * COLUMNS), COLUMNS * 2);
+			for (size_t j = 0; j < columns; j++) {
+				byte style = get_style_from(j, next_i);
+				byte c = getch_from(j, next_i);
+
+				setch(j, i, style, c);
+			}
 		}
 
-		memset(vidmem + ((ROWS - 1) * COLUMNS), 0, COLUMNS * 2);
+		for (size_t j = 0; j < columns; j++) {
+			setch(j, rows - 1, 0, 0);
+		}
 
 		cur_y--;
 	}
 }
 
+void clear_screen(byte style) {
+	size_t columns = get_columns();
+
+	size_t rows = get_rows();
+
+	set_cursor_pos(0, 0);
+
+	for (size_t i = 0; i < columns * rows; i++) {
+		set_style(style);
+
+		putch(' ');
+	}
+
+	set_cursor_pos(0, 0);
+}
+
 void clear_line() {
 	ssize_t old_x = cur_x, old_y = cur_y;
 
-	for (size_t i = 0; i < (COLUMNS - cur_x); i++) {
+	for (size_t i = 0; i < (get_columns() - cur_x); i++) {
 		putch(' ');
 	}
 
@@ -95,8 +539,6 @@ void clear_line() {
 }
 
 size_t kprint(const c_str str) {
-	if (!vidmem) return 0;
-
 	size_t i = 0;
 
 	for (; str[i]; i++) {
@@ -113,7 +555,7 @@ size_t kprint(const c_str str) {
 }
 
 size_t sprint(byte *c, const c_str str) {
-	if (!vidmem) return 0;
+	if (!c) return 0;
 
 	size_t index = 0;
 
@@ -223,27 +665,36 @@ size_t parse_ext_specf(const byte* format, byte def_style) {
 	return temp_i;
 }
 
-size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
+ssize_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 	ssize_t w_index = 0;
 
 	for (size_t i = 0; format[i]; i++) {
-		byte* c = format + i;
+		byte c = format[i];
 
-		while (*c == '%') {
-			bool handled = false;
-
+		while (c == '%') {
 			size_t temp_i = i + 1;
 
-			uintmax_t alignment = 0;
+			bool handled = false;
+
+			intmax_t alignment = 0;
 			bool left_alignment = true; bool right_alignment = false; bool center_alignment = false;
 
-			int min_digits = 0;
+			bool alignment_dots = false;
+
+			intmax_t min_digits = 0;
 
 			byte c_filler = ' ';
 
 			if (format[temp_i] == '0') {
 				if (format[temp_i + 1] == 'm') {
 					c_filler = format[temp_i + 2];
+
+					temp_i += 2;
+				}
+
+				else if (format[temp_i + 1] == 'v' &&
+						format[temp_i + 2] == 'm') {
+					c_filler = va_arg(list, byte);
 
 					temp_i += 2;
 				}
@@ -278,7 +729,7 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 					
 				parse_num(format + temp_i, 10, &alignment, &len);
 
-				temp_i += len + 1;
+				temp_i += len;
 				
 				handled = true;
 			}
@@ -290,14 +741,34 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 				
 				handled = true;
 			}
+
+			if (strncmp(format + temp_i, "...", 3) == 0) {
+				alignment_dots = true;
+				
+				temp_i += 3;
+
+				if (format[temp_i] == '*') {
+					alignment = va_arg(list, int);
+
+					temp_i += 1;
+				}
+
+				else if (isnum(format[temp_i])) {
+					size_t len = 0;
+
+					parse_num(format + temp_i, 10, &alignment, &len);
+
+					temp_i += len;
+				}
+
+				handled = true;
+			}
 			
 			if (format[temp_i] == '.') {
 				if (isnum(format[temp_i + 1])) {
 					size_t len = 0;
 					
 					parse_num(format + temp_i + 1, 10, &min_digits, &len);
-
-					min_digits = min_digits - 1;
 
 					temp_i += len + 1;
 				
@@ -327,7 +798,7 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 
 			if (format[temp_i] == 'l') {
 				printing_num = true;
-				num = va_arg(list, uint64); signable = false; radix = 10;
+				num = va_arg(list, unsigned long long); signable = false; radix = 10;
 
 				temp_i += 1;
 				
@@ -336,7 +807,7 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 
 			if (format[temp_i] == 'z') {
 				printing_num = true;
-				num = (uintmax_t)va_arg(list, size_t); signable = false; radix = 10;
+				num = va_arg(list, size_t); signable = false; radix = 10;
 
 				temp_i += 1;
 				
@@ -376,7 +847,7 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 
 				i = temp_i;
 
-				c = format + i;
+				c = format[i];
 
 				continue;
 			}
@@ -401,9 +872,11 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 			else if (format[temp_i] == 'd') {
 				if (!printing_num) {
 					num = va_arg(list, int); signable = true;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 10;
+				radix = 10;
 
 				temp_i += 1;
 				
@@ -413,9 +886,11 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 			else if (format[temp_i] == 'x') {
 				if (!printing_num) {
 					num = va_arg(list, unsigned int); signable = false;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 16;
+				radix = 16;
 
 				temp_i += 1;
 				
@@ -425,9 +900,11 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 			else if (format[temp_i] == 'b') {
 				if (!printing_num) {
 					num = va_arg(list, unsigned int); signable = false;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 2;
+				radix = 2;
 
 				temp_i += 1;
 				
@@ -437,31 +914,85 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 			else if (format[temp_i] == 'o') {
 				if (!printing_num) {
 					num = va_arg(list, unsigned int); signable = false;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 8;
+				radix = 8;
 
 				temp_i += 1;
 				
 				handled = true;
 			}
 
+			ssize_t str_len = 0;
+
+			byte* str = nullptr;
+
 			if (printing_num) {
-				ssize_t digits = get_num_digits(num, radix, signable);
+				str_len = get_num_digits(num, radix, signable) + 1;
 
-				if ((min_digits - digits) > 0) {
-					for (ssize_t j = 0; j < (min_digits - digits); j++) {
+				if (!c_filler) 
+					c_filler = '0';
+			}
+
+			else if (format[temp_i] == 's') {
+				if (!c_filler) 
+					c_filler = ' ';
+				
+				str = va_arg(list, byte*);
+				
+				if (!str) str = "(null)";
+
+				str_len = strlen(str);
+			}
+
+			else if (format[temp_i] == 'c') {
+				str_len = 1;
+			}
+
+			min_digits = min_digits == 0 ? str_len : min_digits;
+
+			str_len = MIN(min_digits, str_len);
+
+			ssize_t alignment_str_len = alignment_dots ? str_len : min_digits;
+
+			if (right_alignment) {
+				if (alignment > min_digits) {
+					for (ssize_t j = 0; j < alignment - alignment_str_len && (max_len <= 0 || w_index < max_len); j++) {
+						s[w_index++] = c_filler;
+					}
+
+					if (max_len > 0 && w_index >= max_len) {
+						return w_index;
+					}
+				}
+			}
+
+			else if (center_alignment) {
+				intmax_t cnt = align_down(alignment, 2) / 2 - align_down(alignment_str_len, 2) / 2;
+
+				if (cnt > 0) {
+					for (ssize_t j = 0; j < cnt && (max_len <= 0 || w_index < max_len); j++) {
+						s[w_index++] = c_filler;
+					}
+
+					if (max_len > 0 && w_index >= max_len) {
+						return w_index;
+					}
+				}
+			}
+
+			if (printing_num) {
+				if ((min_digits - str_len) > 0) {
+					for (ssize_t j = 0; j < (min_digits - str_len) && (max_len <= 0 || w_index < max_len); j++) {
 						s[w_index++] = '0';
-
-						if (w_index >= max_len) {
-							return w_index;
-						}
 					}
 				}
 
 				w_index += snprint_num(s + w_index, max_len - w_index, num, radix, signable, always_print_sign);
 
-				if (w_index >= max_len) {
+				if (max_len > 0 && w_index >= max_len) {
 					return w_index;
 				}
 
@@ -469,76 +1000,29 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 			}
 
 			else if (format[temp_i] == 's') {
-				byte* str = va_arg(list, c_str);
-
-				size_t str_len = strlen(str);
-
-				if (right_alignment) {
-					if (alignment > str_len) {
-						for (ssize_t j = 0; j < alignment - str_len; j++) {
-							s[w_index++] = c_filler;
-
-							if (w_index >= max_len) {
-								return w_index;
-							}
-						}
-					}
+				if (alignment_dots && str_len > alignment) {
+					alignment -= 3;
 				}
 
-				else if (center_alignment) {
-					if (alignment > str_len) {
-						for (ssize_t j = 0; j < align_down(alignment, 2) / 2 - align_down(str_len, 2) / 2; j++) {
-							s[w_index++] = c_filler;
-
-							if (w_index >= max_len) {
-								return w_index;
-							}
-						}
-					}
-				}
-
-				min_digits = min_digits == 0 ? str_len : min_digits;
-
-				for (size_t j = 0; str[j] && j < min_digits; j++) {
+				for (intmax_t j = 0; str[j] && j < (alignment_dots ? alignment : min_digits + 1) && (max_len <= 0 || w_index < max_len); j++) {
 					if (str[j] == '\n') {
 						s[w_index++] = '\n';
-						
 						s[w_index++] = '\r';
-
-						if (w_index >= max_len) {
-							return w_index;
-						}
 					}
 					
 					else s[w_index++] = str[j];
 				}
 
-				if (w_index >= max_len) {
+				if ((max_len > 0 && w_index >= max_len)) {
 					return w_index;
 				}
 
-				if (left_alignment) {
-					if (alignment > str_len) {
-						for (ssize_t j = 0; j < alignment - str_len; j++) {
-							s[w_index++] = c_filler;
-
-							if (w_index >= max_len) {
-								return w_index;
-							}
-						}
-					}
+				if (alignment_dots && str_len > alignment) {
+					sprint(s + w_index, "...");
 				}
 
-				else if (center_alignment) {
-					if (alignment > str_len) {
-						for (ssize_t j = 0; j < align_up(alignment, 2) / 2 - align_up(str_len, 2) / 2; j++) {
-							s[w_index++] = c_filler;
-
-							if (w_index >= max_len) {
-								return w_index;
-							}
-						}
-					}
+				if (max_len > 0 && w_index >= max_len) {
+					return w_index;
 				}
 
 				temp_i += 1;
@@ -549,7 +1033,7 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 			else if (format[temp_i] == 'c') {
 				s[w_index++] = va_arg(list, int);
 
-				if (w_index >= max_len) {
+				if (max_len > 0 && w_index >= max_len) {
 					return w_index;
 				}
 
@@ -558,28 +1042,54 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 				handled = true;
 			}
 
+			if (left_alignment) {
+				if (alignment > min_digits) {
+					for (ssize_t j = 0; j < alignment - alignment_str_len; j++) {
+						s[w_index++] = c_filler;
+					}
+				}
+
+				if (max_len > 0 && w_index >= max_len) {
+					return w_index;
+				}
+			}
+
+			else if (center_alignment) {
+				intmax_t cnt = align_up(alignment, 2) / 2 - align_up(alignment_str_len, 2) / 2;
+
+				if (cnt > 0) {
+					for (intmax_t j = 0; j < cnt; j++) {
+						s[w_index++] = c_filler;
+					}
+				}
+
+				if (max_len > 0 && w_index >= max_len) {
+					return w_index;
+				}
+			}
+
 			if (!handled) break;
 
 			i = temp_i;
 
-			c = format + i;
+			c = format[i];
 		}
 
-		c = format + i;
+		c = format[i];
 
-		if (*c == '\n') {
+		if (c == '\n') {
 			s[w_index++] = '\n';
 			s[w_index++] = '\r';
 
-			if (w_index >= max_len) {
+			if (max_len > 0 && w_index >= max_len) {
 				return w_index;
 			}
 		}
 
-		else if (*c == '\0') {
-			s[w_index++] = *c;
+		else if (c == '\0') {
+			s[w_index++] = c;
 
-			if (w_index >= max_len) {
+			if (max_len > 0 && w_index >= max_len) {
 				return w_index;
 			}
 			
@@ -587,9 +1097,9 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 		}
 		
 		else {
-			s[w_index++] = *c;
+			s[w_index++] = c;
 
-			if (w_index >= max_len) {
+			if (max_len > 0 && w_index >= max_len) {
 				return w_index;
 			}
 		}
@@ -598,7 +1108,7 @@ size_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 	return w_index;
 }
 
-size_t snprintf(byte *c, ssize_t max_len, const c_str format, ...) {
+ssize_t snprintf(byte *c, ssize_t max_len, const c_str format, ...) {
 	va_list list;
 
 	va_start(list, format);
@@ -610,16 +1120,16 @@ size_t snprintf(byte *c, ssize_t max_len, const c_str format, ...) {
 	return writed;
 }
 
-size_t vsprintf(byte* c, const c_str format, va_list list) {
+ssize_t vsprintf(byte* c, const c_str format, va_list list) {
 	return vsnprintf(c, -1, format, list);
 }
 
-size_t sprintf(byte* c, const c_str format, ...) {
+ssize_t sprintf(byte* c, const c_str format, ...) {
 	va_list list;
 
 	va_start(list, format);
 
-	size_t writed = vsnprintf(c, -1, format, list);
+	ssize_t writed = vsnprintf(c, -1, format, list);
 
 	va_end(list);
 
@@ -631,7 +1141,7 @@ size_t kprintf(const c_str format, ...) {
 
 	va_start(list, format);
 	
-	byte def_style = cur_style;
+	byte def_style = get_style();
 
 	size_t w_index = 0;
 
@@ -644,15 +1154,24 @@ size_t kprintf(const c_str format, ...) {
 			bool passed = false;
 
 			intmax_t alignment = 0;
-			bool left_alignment = true; bool right_alignment = false; bool center_alignment = false;
+			bool left_alignment = false; bool right_alignment = true; bool center_alignment = false;
+
+			bool alignment_dots = false;
 
 			intmax_t min_digits = 0;
 
-			byte c_filler = ' ';
+			byte c_filler = 0;
 
 			if (format[temp_i] == '0') {
 				if (format[temp_i + 1] == 'm') {
 					c_filler = format[temp_i + 2];
+
+					temp_i += 2;
+				}
+
+				else if (format[temp_i + 1] == 'v' &&
+						format[temp_i + 2] == 'm') {
+					c_filler = va_arg(list, byte);
 
 					temp_i += 2;
 				}
@@ -665,7 +1184,7 @@ size_t kprintf(const c_str format, ...) {
 			}
 
 			if (format[temp_i] == '-') {
-				left_alignment = false; right_alignment = true; center_alignment = false;
+				left_alignment = true; right_alignment = false; center_alignment = false;
 				
 				temp_i += 1;
 				
@@ -697,14 +1216,34 @@ size_t kprintf(const c_str format, ...) {
 				
 				passed = true;
 			}
+
+			if (strncmp(format + temp_i, "...", 3) == 0) {
+				alignment_dots = true;
+				
+				temp_i += 3;
+
+				if (format[temp_i] == '*') {
+					alignment = va_arg(list, int);
+
+					temp_i += 1;
+				}
+
+				else if (isnum(format[temp_i])) {
+					size_t len = 0;
+
+					parse_num(format + temp_i, 10, &alignment, &len);
+
+					temp_i += len;
+				}
+
+				passed = true;
+			}
 			
 			if (format[temp_i] == '.') {
 				if (isnum(format[temp_i + 1])) {
 					size_t len = 0;
 					
 					parse_num(format + temp_i + 1, 10, &min_digits, &len);
-
-					min_digits = min_digits - 1;
 
 					temp_i += len + 1;
 				
@@ -754,11 +1293,11 @@ size_t kprintf(const c_str format, ...) {
 			
 			if (format[temp_i] == 'u') {
 				if (!printing_num) {
+					printing_num = true;
+
 					num = va_arg(list, unsigned int);
 				}
 				
-				printing_num = true;
-
 				signable = false; radix = 10;
 
 				temp_i += 1;
@@ -768,11 +1307,11 @@ size_t kprintf(const c_str format, ...) {
 			
 			if (format[temp_i] == 'i') {
 				if (!printing_num) {
+					printing_num = true;
+
 					num = va_arg(list, int);
 				}
 				
-				printing_num = true;
-
 				signable = true; radix = 10;
 
 				temp_i += 1;
@@ -793,9 +1332,11 @@ size_t kprintf(const c_str format, ...) {
 			if (format[temp_i] == 'n') {
 				if (!printing_num) {
 					num = va_arg(list, unsigned int); signable = false;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = va_arg(list, unsigned int);
+				radix = va_arg(list, unsigned int);
 
 				if (radix < 2 || radix > 32)
 					radix = 10;
@@ -807,10 +1348,12 @@ size_t kprintf(const c_str format, ...) {
 			
 			else if (format[temp_i] == 'd') {
 				if (!printing_num) {
-					num = va_arg(list, unsigned int); signable = false;
+					num = va_arg(list, int); signable = true;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 10;
+				radix = 10;
 
 				temp_i += 1;
 				
@@ -820,9 +1363,11 @@ size_t kprintf(const c_str format, ...) {
 			else if (format[temp_i] == 'x') {
 				if (!printing_num) {
 					num = va_arg(list, unsigned int); signable = false;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 16;
+				radix = 16;
 
 				temp_i += 1;
 				
@@ -832,9 +1377,11 @@ size_t kprintf(const c_str format, ...) {
 			else if (format[temp_i] == 'b') {
 				if (!printing_num) {
 					num = va_arg(list, unsigned int); signable = false;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 2;
+				radix = 2;
 
 				temp_i += 1;
 				
@@ -844,24 +1391,73 @@ size_t kprintf(const c_str format, ...) {
 			else if (format[temp_i] == 'o') {
 				if (!printing_num) {
 					num = va_arg(list, unsigned int); signable = false;
+
+					printing_num = true;
 				}
 
-				printing_num = true; radix = 8;
+				radix = 8;
 
 				temp_i += 1;
 				
 				passed = true;
 			}
 
-			if (printing_num) {
-				ssize_t digits = get_num_digits(num, radix, signable);
+			ssize_t str_len = 0;
 
-				if ((min_digits - digits) > 0) {
-					for (ssize_t j = 0; j < (min_digits - digits); j++) {
+			byte* str = nullptr;
+
+			if (printing_num) {
+				str_len = get_num_digits(num, radix, signable) + 1;
+
+				if (!c_filler) 
+					c_filler = '0';
+			}
+
+			else if (format[temp_i] == 's') {
+				if (!c_filler) 
+					c_filler = ' ';
+				
+				str = va_arg(list, byte*);
+				
+				if (!str) str = "(null)";
+
+				str_len = strlen(str);
+			}
+			else if (format[temp_i] == 'c') {
+				str_len = 1;
+			}
+
+			min_digits = min_digits == 0 ? str_len : min_digits;
+
+			str_len = MIN(min_digits, str_len);
+
+			ssize_t alignment_str_len = alignment_dots ? str_len : min_digits;
+
+			if (right_alignment) {
+				if (alignment > min_digits) {
+					for (ssize_t j = 0; j < alignment - alignment_str_len; j++) {
+						putch(c_filler);
+					}
+				}
+			}
+
+			else if (center_alignment) {
+				intmax_t cnt = align_down(alignment, 2) / 2 - align_down(alignment_str_len, 2) / 2;
+
+				if (cnt > 0) {
+					for (ssize_t j = 0; j < cnt; j++) {
+						putch(c_filler);
+					}
+				}
+			}
+
+			if (printing_num) {
+				if ((min_digits - str_len) > 0) {
+					for (ssize_t j = 0; j < (min_digits - str_len); j++) {
 						putch('0');
 					}
 
-					w_index += min_digits - digits;
+					w_index += min_digits - str_len;
 				}
 
 				w_index += print_num(num, radix, signable, always_print_sign);
@@ -870,33 +1466,11 @@ size_t kprintf(const c_str format, ...) {
 			}
 
 			else if (format[temp_i] == 's') {
-				byte* str = va_arg(list, c_str);
-
-				size_t str_len = strlen(str);
-
-				min_digits = min_digits == 0 ? str_len : min_digits;
-
-				str_len = MIN(min_digits, str_len);
-
-				if (right_alignment) {
-					if (alignment > str_len) {
-						for (ssize_t j = 0; j < alignment - str_len; j++) {
-							putch(c_filler);
-						}
-					}
+				if (alignment_dots && str_len > alignment) {
+					alignment -= 3;
 				}
 
-				else if (center_alignment) {
-					intmax_t cnt = align_down(alignment, 2) / 2 - align_down(str_len, 2) / 2;
-
-					if (cnt > 0) {
-						for (ssize_t j = 0; j < cnt; j++) {
-							putch(c_filler);
-						}
-					}
-				}
-
-				for (int j = 0; str[j] && j <= min_digits; j++) {
+				for (int j = 0; str[j] && j < (alignment_dots ? alignment : min_digits + 1); j++) {
 					if (str[j] == '\n') {
 						putch('\n'); putch('\r');
 					}
@@ -904,22 +1478,8 @@ size_t kprintf(const c_str format, ...) {
 					else putch(str[j]);
 				}
 
-				if (left_alignment) {
-					if (alignment > str_len) {
-						for (ssize_t j = 0; j < alignment - str_len; j++) {
-							putch(c_filler);
-						}
-					}
-				}
-
-				else if (center_alignment) {
-					intmax_t cnt = align_up(alignment, 2) / 2 - align_up(str_len, 2) / 2;
-
-					if (cnt > 0) {
-						for (intmax_t j = 0; j < cnt; j++) {
-							putch(c_filler);
-						}
-					}
+				if (alignment_dots && str_len > alignment) {
+					kprint("...");
 				}
 
 				temp_i += 1;
@@ -943,6 +1503,24 @@ size_t kprintf(const c_str format, ...) {
 				temp_i += parse_ext_specf(format + temp_i, def_style);
 				
 				passed = true;
+			}
+
+			if (left_alignment) {
+				if (alignment > min_digits) {
+					for (ssize_t j = 0; j < alignment - alignment_str_len; j++) {
+						putch(c_filler);
+					}
+				}
+			}
+
+			else if (center_alignment) {
+				intmax_t cnt = align_up(alignment, 2) / 2 - align_up(alignment_str_len, 2) / 2;
+
+				if (cnt > 0) {
+					for (intmax_t j = 0; j < cnt; j++) {
+						putch(c_filler);
+					}
+				}
 			}
 
 			if (!passed) break;
@@ -975,18 +1553,6 @@ size_t kprintf(const c_str format, ...) {
 	return w_index;
 }
 
-byte blkgetch(void) {
-	byte result = 0;
-
-	while (!result) {
-		result = getch();
-
-		halt();
-	}
-
-	return result;
-}
-
 size_t sscanf(const byte* s, const c_str format, ...) {
 	va_list list;
 
@@ -999,12 +1565,6 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 	for (size_t i = 0; format[i]; i++) {
 		byte c = format[i];
 
-		while (!isprintable(c)) {
-			i++;
-
-			c = format[i];
-		}
-
 		while (c == '%') {
 			size_t temp_i = i + 1;
 
@@ -1012,14 +1572,58 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 
 			bool parsing_num = false;
 
+			bool ignore = false;
+
 			byte* number = 0; size_t number_size = 0;
 			
 			uintmax_t radix = 10; bool signable = true;
 
+			int equals_digits = 0;
+
+			int max_digits = 0;
+
+			if (format[temp_i] == '*') {
+				ignore = true;
+
+				temp_i += 1;
+			}
+
+			if (isnum(format[temp_i])) {
+				size_t len = 0;
+
+				parse_num(format + temp_i, 10, &max_digits, &len);
+
+				temp_i += len;
+			}
+
+			else if (format[temp_i] == '*') {
+				max_digits = va_arg(list, int);
+
+				temp_i += 1;
+			}
+
+			if (format[temp_i] == '.') {
+				if (isnum(format[temp_i + 1])) {
+					size_t len = 0;
+
+					parse_num(format + temp_i + 1, 10, &equals_digits, &len);
+
+					temp_i += len + 1;
+				}
+
+				else if (format[temp_i + 1] == '*') {
+					equals_digits = va_arg(list, int);
+
+					temp_i += 2;
+				}
+			}
+
 			if (format[temp_i] == 'l') {
 				if (!parsing_num) {
-					number = va_arg(list, long long*);
-					number_size = sizeof(long long);
+					if (!ignore) {
+						number = va_arg(list, long long*);
+						number_size = sizeof(long long);
+					}
 					
 					radix = 10; signable = true;
 				}
@@ -1033,8 +1637,10 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 
 			else if (format[temp_i] == 'z') {
 				if (!parsing_num) {
-					number = va_arg(list, size_t*);
-					number_size = sizeof(size_t);
+					if (!ignore) {
+						number = va_arg(list, size_t*);
+						number_size = sizeof(size_t);
+					}
 					
 					radix = 10; signable = false;
 				}
@@ -1048,14 +1654,16 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 
 			if (format[temp_i] == 'i') {
 				if (!parsing_num) {
-					number = va_arg(list, int*);
-					number_size = sizeof(int);
+					if (!ignore) {
+						number = va_arg(list, int*);
+						number_size = sizeof(int);
+					}
 					
 					radix = 10;
 				}
 					
 				parsing_num = true;
-					
+				
 				signable = true;
 
 				temp_i += 1;
@@ -1065,13 +1673,15 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 
 			else if (format[temp_i] == 'u') {
 				if (!parsing_num) {
-					number = va_arg(list, unsigned int*);
-					number_size = sizeof(unsigned int);
+					if (!ignore) {
+						number = va_arg(list, unsigned int*);
+						number_size = sizeof(unsigned int);
+					}
 
 					radix = 10;
+					
+					parsing_num = true;
 				}
-
-				parsing_num = true;
 
 				signable = false;
 
@@ -1080,20 +1690,119 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 				passed = true;
 			}
 
+			if (format[temp_i] == 'x') {
+				if (!parsing_num) {
+					if (!ignore) {
+						number = va_arg(list, int*);
+						number_size = sizeof(int);
+					}
+					
+					signable = false;
+					
+					parsing_num = true;
+				}
+
+				radix = 16;
+
+				temp_i += 1;
+
+				passed = true;
+			}
+
+			else if (format[temp_i] == 'd') {
+				if (!parsing_num) {
+					if (!ignore) {
+						number = va_arg(list, int*);
+						number_size = sizeof(int);
+					}
+					
+					signable = true;
+					
+					parsing_num = true;
+				}
+
+				radix = 10;
+
+				temp_i += 1;
+
+				passed = true;
+			}
+
+			else if (format[temp_i] == 'b') {
+				if (!parsing_num) {
+					if (!ignore) {
+						number = va_arg(list, int*);
+						number_size = sizeof(int);
+					}
+					
+					signable = false;
+					
+					parsing_num = true;
+				}
+
+				radix = 2;
+
+				temp_i += 1;
+
+				passed = true;
+			}
+
+			else if (format[temp_i] == 'o') {
+				if (!parsing_num) {
+					if (!ignore) {
+						number = va_arg(list, int*);
+						number_size = sizeof(int);
+					}
+					
+					signable = false;
+					
+					parsing_num = true;
+				}
+
+				radix = 8;
+
+				temp_i += 1;
+
+				passed = true;
+			}
+
+			// if (format[temp_i] == 'n') {
+			
 			if (parsing_num) {
 				uintmax_t result_num = 0;
 				
 				size_t len = 0;
 					
-				parse_num(s + r_index, radix, &result_num, &len);
+				if (!ignore) {
+					int err = nparse_num(s + r_index, max_digits, radix, &result_num, &len);
+
+					if (err != PARSE_NUM_OK || len <= 0) {
+						va_end(list);
+
+						return writed_args;
+					}
+
+					if (equals_digits > 0 &&
+						len != equals_digits) {
+						va_end(list);
+
+						return writed_args;
+					}
+
+					for (size_t j = 0; j < number_size; j++) {
+						number[j] = result_num & 0xFF;
+
+						result_num >>= 8;
+					}
+					
+					writed_args += 1;
+				}
+
+				else {
+					nparse_num(s + r_index, max_digits, radix, nullptr, &len);
+				}
 
 				r_index += len;
-
-				for (size_t j = 0; j < number_size; j++) {
-					number[j] = result_num & 0xFF;
-
-					result_num >>= 8;
-				}
 
 				passed = true;
 			}
@@ -1111,9 +1820,91 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 					inputed_c = s[r_index++];
 				}
 
+				writed_args += 1;
+
 				temp_i += 1;
 
 				writed_args += 1;
+
+				passed = true;
+			}
+
+			else if (format[temp_i] == '[') {
+				temp_i += 1;
+
+				bool inverse = false; 
+
+				byte selected_chars[256] = { 0 }; size_t ch_pos = 0;
+
+				byte* results = nullptr;
+
+				if (!ignore) {
+					results = va_arg(list, byte*);
+				}
+
+				if (format[temp_i] == '^') {
+					inverse = true;
+
+					temp_i += 1;
+				}
+					
+				while (format[temp_i] != ']') {
+					byte st_ch = format[temp_i];
+					byte mid_ch = format[temp_i + 1];
+					byte end_ch = format[temp_i + 2];
+
+					if (st_ch <= end_ch && mid_ch == '-') {
+						for (byte j = st_ch; j <= end_ch; j++) {
+							selected_chars[ch_pos++] = j;
+						}
+
+						temp_i += 2;
+					}
+
+					else {
+						for (; format[temp_i] && format[temp_i] != ']'; temp_i++) {
+							selected_chars[ch_pos++] = format[temp_i];
+						}
+
+						if (!format[temp_i]) {
+							va_end(list);
+
+							return writed_args;
+						}
+					}
+
+					temp_i += 1;
+				}
+
+				if (format[temp_i] == ']') temp_i += 1;
+
+				print_hex(selected_chars, 0, 128); kprint("\n\r");
+
+				byte inputed_c = s[r_index];
+
+				while (isprintable(inputed_c)) {
+					bool allow = inverse;
+
+					for (size_t j = 0; selected_chars[j] && j < 256; j++) {
+						if (inputed_c == selected_chars[j]) {
+							allow = !inverse; break;
+						}
+					}
+
+					if (allow) {
+						if (results) {
+							*(results++) = inputed_c;
+						}
+						
+						r_index++;
+					}
+
+					else break;
+					
+					inputed_c = s[r_index];
+				}
+
+				if (results) writed_args++;
 
 				passed = true;
 			}
@@ -1127,6 +1918,16 @@ size_t sscanf(const byte* s, const c_str format, ...) {
 
 		if (c == '\0') {
 			break;
+		}
+
+		else if (c == ' ') {
+			byte inputed_c = s[r_index];
+
+			while (!isprintable(inputed_c)) {
+				inputed_c = s[r_index];
+
+				r_index++;
+			}
 		}
 
 		else {
@@ -1396,10 +2197,6 @@ ErrorCode parse_hex(byte* result, size_t res_size, const c_str str) {
 }
 
 int parse_num(const c_str str, uintmax_t radix, uintmax_t* _result, size_t* len) {
-	if (!_result) {
-		return PARSE_NUM_INVLD_RESULT_PTR;
-	}
-
 	if (str == nullptr) {
 		return PARSE_NUM_INVLD_STR;
 	}
@@ -1414,6 +2211,49 @@ int parse_num(const c_str str, uintmax_t radix, uintmax_t* _result, size_t* len)
 
 	while (ch_index_in_alphabet(upper(str[digit_cnt]), num_alphabet, radix) != -1)
 		digit_cnt++;
+	
+	if (digit_cnt == 0)
+		return PARSE_NUM_INVLD_NUM;
+
+	for (size_t i = 0; i < digit_cnt; i++) {
+		byte c = upper(str[i]);
+
+		size_t index = ch_index_in_alphabet(c, num_alphabet, radix);
+
+		if (index == -1) {
+			if (len) *len = digit_cnt;
+
+			return PARSE_NUM_INVLD_NUM;
+		}
+
+		result *= radix;
+		
+		result += index;
+	}
+
+	if (_result) *_result = result;
+
+	if (len) *len = digit_cnt;
+
+	return PARSE_NUM_OK;
+}
+
+int nparse_num(const c_str str, ssize_t max_size, uintmax_t radix, uintmax_t* _result, size_t* len) {
+	if (str == nullptr) {
+		return PARSE_NUM_INVLD_STR;
+	}
+
+	if (radix <= 1 || radix >= strlen(num_alphabet)) {
+		return PARSE_NUM_INVLD_RADIX;
+	}
+
+	uintmax_t result = 0;
+
+	size_t digit_cnt = 0;
+
+	while ((max_size <= 0 || digit_cnt < max_size) &&
+			ch_index_in_alphabet(upper(str[digit_cnt]), num_alphabet, radix) != -1)
+		digit_cnt++;
 
 	for (size_t i = 0; i < digit_cnt; i++) {
 		byte c = upper(str[i]);
@@ -1427,7 +2267,7 @@ int parse_num(const c_str str, uintmax_t radix, uintmax_t* _result, size_t* len)
 		result += index;
 	}
 
-	*_result = result;
+	if (_result) *_result = result;
 
 	if (len) *len = digit_cnt;
 
@@ -1435,7 +2275,7 @@ int parse_num(const c_str str, uintmax_t radix, uintmax_t* _result, size_t* len)
 }
 
 void snprint_hex(byte* s, ssize_t max_size, byte* num, size_t size) {
-	if (!vidmem) return;
+	if (!s) return;
 
 	if (num == nullptr) return;
 
@@ -1459,8 +2299,6 @@ void snprint_hex(byte* s, ssize_t max_size, byte* num, size_t size) {
 }
 
 void print_hex(byte* num, size_t offset, size_t size) {
-	if (!vidmem) return;
-
 	if (num == nullptr) return;
 
 	size_t i = 0;
@@ -1473,22 +2311,24 @@ void print_hex(byte* num, size_t offset, size_t size) {
 
 	byte ascii_buf[] = { "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0" };
 
-	size_t digits = MAX(4, get_num_digits(offset + size, 16, false) + 1);
+	size_t digits = MAX(5, get_num_digits(offset + size, 16, false) + 1);
 
-	ssize_t width = COLUMNS - (1 + (digits + 3) * 2 + sizeof(ascii_buf));
+	ssize_t width = get_columns() - (1 + (digits + 3) * 2 + sizeof(ascii_buf));
+
+	size_t ascii_buf_size = MIN(width / 3, sizeof(ascii_buf));
 
 	width = align_down(width, step) - (step * 2);
 
-	kprintf("�%0m�*s�%0m�*s�%0m�*s�%0m�*s�\n\r", digits + 1, "", width, "", digits + 1, "", sizeof(ascii_buf), "");
+	kprintf("┌%0m─*s┬%0m─*s┬%0m─*s┬%0m─*s┐\n\r", digits, "", width, "", digits, "", ascii_buf_size, "");
 
-	kprintf("�START�%=*s�%=*s�%=*s�\n\r", width, "HEX VIEW", digits + 1, "END", sizeof(ascii_buf), "ASCII");
+	kprintf("│START│%=*s│%=*s│%=*s│\n\r", width, "HEX VIEW", digits, "END", ascii_buf_size, "ASCII");
 
-	kprintf("�%0m�*s�%0m�*s�%0m�*s�%0m�*s�\n\r", 5, "", width, "", digits + 1, "", sizeof(ascii_buf), "");
+	kprintf("├%0m─*s┼%0m─*s┼%0m─*s┼%0m─*s┤\n\r", digits, "", width, "", digits, "", ascii_buf_size, "");
 
 	while (i < size) {
 		set_style(COLOR_BRIGHT_WHITE);
 
-		kprintf("�%vfw%.*lx%vd�", digits, MIN(size + offset, i + offset));
+		kprintf("│%vfw%.*lx%vd│", digits, MIN(size + offset, i + offset));
 
 		size_t ascii_colon_width = MIN(sizeof(ascii_buf), width / step);
 
@@ -1536,11 +2376,11 @@ void print_hex(byte* num, size_t offset, size_t size) {
 
 		set_style(COLOR_BRIGHT_WHITE);
 
-		kprintf("�%vfw%.*lx%vd�", digits, MIN(size + offset, i + offset));
+		kprintf("│%vfw%.*lx%vd│", digits, MIN(size + offset, i + offset));
 
-		for (size_t k = 0; k < sizeof(ascii_buf); k++) {
+		for (size_t k = 0; k < ascii_buf_size; k++) {
 			if (k >= (i - last_i)) {
-				putch('.'); continue;
+				putch(' '); continue;
 			}
 
 			byte num_byte = READ_NUM(last_i + k);
@@ -1558,7 +2398,7 @@ void print_hex(byte* num, size_t offset, size_t size) {
 				set_style(color >= 1 ? color : COLOR_BRIGHT_WHITE);
 			}
 
-			if (isascii(num_byte))
+			if (isprintable(num_byte))
 				putch(num_byte);
 			else
 				putch('.');
@@ -1566,10 +2406,10 @@ void print_hex(byte* num, size_t offset, size_t size) {
 
 		set_style(COLOR_BRIGHT_WHITE);
 
-		kprint("�\n\r");
+		kprint("│\n\r");
 	}
 
-	kprintf("�%0m�*s�%0m�*s�%0m�*s�%0m�*s�", digits + 1, "", width, "", digits + 1, "", sizeof(ascii_buf), "");
+	kprintf("└%0m─*s┴%0m─*s┴%0m─*s┴%0m─*s┘", digits, "", width, "", digits, "", ascii_buf_size, "");
 
 	crt_set_cursor_pos(cur_x, cur_y);
 }
@@ -1642,8 +2482,6 @@ size_t snprint_num(byte* s, ssize_t max_size, size_t num, size_t base, bool num_
 }
 
 size_t print_num(uintmax_t num, uintmax_t base, bool num_signed, bool always_show_sign) {
-	if (!vidmem) return 0;
-
 	if (base <= 0 || base >= strlen(num_alphabet)) {
 		return 0;
 	}
@@ -1682,26 +2520,18 @@ size_t print_num(uintmax_t num, uintmax_t base, bool num_signed, bool always_sho
 }
 
 void set_cursor_pos(ssize_t _x, ssize_t _y) {
-	ssize_t pos = _x + (_y * COLUMNS);
+	size_t columns = get_columns();
 
-	ssize_t x = pos % COLUMNS;
-	ssize_t y = pos / COLUMNS;
+	ssize_t pos = _x + (_y * columns);
+
+	ssize_t x = columns > 0 ? pos % columns : 0;
+	ssize_t y = columns > 0 ? pos / columns : 0;
 
 	cur_x = x; cur_y = y;
-
-	// crt_set_cursor_pos(cur_x, cur_y);
 }
 
 void get_cursor_pos(ssize_t* x, ssize_t* y) {
 	if (x) *x = cur_x;
 
 	if (y) *y = cur_y;
-}
-
-void set_style(byte style) {
-	cur_style = style;
-}
-
-byte get_style(void) {
-	return cur_style;
 }

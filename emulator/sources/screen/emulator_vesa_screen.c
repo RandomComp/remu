@@ -61,7 +61,7 @@ vesa_screen_t* init_vesa_screen(vesa_device_t* vesa_device)
 void draw_vesa_screen(vesa_screen_t* screen) {
 	if (!screen) return;
 
-	// TODO: Реализовать поддержку разной глубины цвета
+	// TODO: ╨á╨╡╨░╨╗╨╕╨╖╨╛╨▓╨░╤é╤î ╨┐╨╛╨┤╨┤╨╡╤Ç╨╢╨║╤â ╤Ç╨░╨╖╨╜╨╛╨╣ ╨│╨╗╤â╨▒╨╕╨╜╤ï ╤å╨▓╨╡╤é╨░
 
 	#ifndef EMULATOR_SDL_USING
 	emulator_log(true, LOG_SEVERITY_ERROR, "VESA screen updating fail: VESA is unsupported in non-gui mode");

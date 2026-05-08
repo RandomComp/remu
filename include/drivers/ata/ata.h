@@ -27,14 +27,16 @@
 
 #define ATA_INT				0x2E
 
-#define ATA_ERR_BADBLK						0x80
-#define ATA_ERR_UNC_DATA					0x40
-#define ATA_ERR_MEDIA_CHANGED				0x20
-#define ATA_ERR_ID_NOT_FOUND				0x10
-#define ATA_ERR_MEDIA_CHANGED_RQ			0x08
-#define ATA_ERR_ABORT						0x04
-#define ATA_ERR_TRACK_0_NOT_FOUND			0x02
-#define ATA_ERR_ADDRESS_MARK_NOT_FOUND		0x01
+typedef enum ata_error_e {
+	ATA_ERR_BADBLK 					=	0x80, // Bad block detected
+	ATA_ERR_UNC_DATA 				=	0x40, // Uncorrected data
+	ATA_ERR_MEDIA_CHANGED 			=	0x20, // Disk changed
+	ATA_ERR_ID_NOT_FOUND 			=	0x10, // Sector not found
+	ATA_ERR_MEDIA_CHANGED_RQ 		=	0x08, // Request for change disk
+	ATA_ERR_ABORT 					=	0x04, // Unsupported operation
+	ATA_ERR_TRACK_0_NOT_FOUND 		=	0x02, // Critical problem with disk head 
+	ATA_ERR_ADDRESS_MARK_NOT_FOUND 	=	0x01, // Sector not found
+} ata_error_e;
 
 #include "types.h"
 
@@ -52,7 +54,9 @@ void ata_read_info(byte drive, uint32* _sectors, byte* model_name, byte* serial_
 
 void ata_flush();
 
-byte* ata_get_error();
+byte ata_read_status(void);
+
+byte* ata_err_description(byte status);
 
 uint64 ata_read_size(byte drive);
 

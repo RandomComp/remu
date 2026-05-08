@@ -22,29 +22,29 @@ extern multiboot_info_t* multiboot;
 
 const c_str logo[] =
 {
-	"%vfbr€€€€€€€%vd %vfbg€€€    €€€%vd %vfby€€    €€%vd        €€€€€€  €€€€€€€\n", 
-	"%vfbr€€     %vd %vfbg€€€€  €€€€%vd %vfby€€    €€%vd       €€    €€ €€     \n",
-	"%vfbr€€€€€  %vd %vfbg€€ €€€€ €€%vd %vfby€€    €€%vd €€€€€ €€    €€ €€€€€€€\n",
-	"%vfbr€€     %vd %vfbg€€  €€  €€%vd %vfby€€    €€%vd       €€    €€      €€\n", 
-	"%vfbr€€€€€€€%vd %vfbg€€      €€%vd %vfby €€€€€€ %vd        €€€€€€  €€€€€€€\n"
+	"%vfbr‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà%vd %vfbg‚ñà‚ñà‚ñà    ‚ñà‚ñà‚ñà%vd %vfby‚ñà‚ñà    ‚ñà‚ñà%vd        ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà\n", 
+	"%vfbr‚ñà‚ñà     %vd %vfbg‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà%vd %vfby‚ñà‚ñà    ‚ñà‚ñà%vd       ‚ñà‚ñà    ‚ñà‚ñà ‚ñà‚ñà     \n",
+	"%vfbr‚ñà‚ñà‚ñà‚ñà‚ñà  %vd %vfbg‚ñà‚ñà ‚ñà‚ñà‚ñà‚ñà ‚ñà‚ñà%vd %vfby‚ñà‚ñà    ‚ñà‚ñà%vd ‚ñà‚ñà‚ñà‚ñà‚ñà ‚ñà‚ñà    ‚ñà‚ñà ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà\n",
+	"%vfbr‚ñà‚ñà     %vd %vfbg‚ñà‚ñà  ‚ñà‚ñà  ‚ñà‚ñà%vd %vfby‚ñà‚ñà    ‚ñà‚ñà%vd       ‚ñà‚ñà    ‚ñà‚ñà      ‚ñà‚ñà\n", 
+	"%vfbr‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà%vd %vfbg‚ñà‚ñà      ‚ñà‚ñà%vd %vfby ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà %vd        ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà\n"
 };
 
 const c_str view_logo[] =
 {
-	"€€€€€€€ €€€    €€€ €€    €€        €€€€€€  €€€€€€€", 
-	"€€      €€€€  €€€€ €€    €€       €€    €€ €€     ",
-	"€€€€€   €€ €€€€ €€ €€    €€ €€€€€ €€    €€ €€€€€€€",
-	"€€      €€  €€  €€ €€    €€       €€    €€      €€", 
-	"€€€€€€€ €€      €€  €€€€€€         €€€€€€  €€€€€€€"
+	"‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà ‚ñà‚ñà‚ñà    ‚ñà‚ñà‚ñà ‚ñà‚ñà    ‚ñà‚ñà        ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà", 
+	"‚ñà‚ñà      ‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà ‚ñà‚ñà    ‚ñà‚ñà       ‚ñà‚ñà    ‚ñà‚ñà ‚ñà‚ñà     ",
+	"‚ñà‚ñà‚ñà‚ñà‚ñà   ‚ñà‚ñà ‚ñà‚ñà‚ñà‚ñà ‚ñà‚ñà ‚ñà‚ñà    ‚ñà‚ñà ‚ñà‚ñà‚ñà‚ñà‚ñà ‚ñà‚ñà    ‚ñà‚ñà ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà",
+	"‚ñà‚ñà      ‚ñà‚ñà  ‚ñà‚ñà  ‚ñà‚ñà ‚ñà‚ñà    ‚ñà‚ñà       ‚ñà‚ñà    ‚ñà‚ñà      ‚ñà‚ñà", 
+	"‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà ‚ñà‚ñà      ‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà         ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà"
 };
 
 const c_str version_logo[] =
 {
-	"€€    €€  €€€€€€     €€€€€€  €€€€€€ \n", 
-	"€€    €€ €€  €€€€         €€      €€\n", 
-	"€€    €€ €€ €€ €€     €€€€€   €€€€€ \n", 
-	" €€  €€  €€€€  €€         €€ €€     \n", 
-	"  €€€€    €€€€€€  €€ €€€€€€  €€€€€€€\n"
+	"‚ñà‚ñà    ‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà     ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà \n", 
+	"‚ñà‚ñà    ‚ñà‚ñà ‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà         ‚ñà‚ñà      ‚ñà‚ñà\n", 
+	"‚ñà‚ñà    ‚ñà‚ñà ‚ñà‚ñà ‚ñà‚ñà ‚ñà‚ñà     ‚ñà‚ñà‚ñà‚ñà‚ñà   ‚ñà‚ñà‚ñà‚ñà‚ñà \n", 
+	" ‚ñà‚ñà  ‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà         ‚ñà‚ñà ‚ñà‚ñà     \n", 
+	"  ‚ñà‚ñà‚ñà‚ñà    ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà  ‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà‚ñà\n"
 };
 
 int info_cmd(const byte **argv, size_t argc) {
@@ -68,7 +68,7 @@ int info_cmd(const byte **argv, size_t argc) {
 		"Serial number"
 	};
 
-	byte* info[9][128] = {
+	byte info[9][128] = {
 		{ 0 }
 	};
 	
@@ -121,8 +121,10 @@ int info_cmd(const byte **argv, size_t argc) {
 
 		size_t buf_index = 0;
 
-		if (is_floppy)
+		if (is_floppy) {
 			buf_index += sprintf(info[5] + buf_index, "floppy ");
+		}
+		
 		else if (is_hard) {
 			buf_index += sprintf(info[5] + buf_index, "hard disk #%u ", hard_num);
 		}
@@ -172,29 +174,31 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	#define EMULATOR_NAME_STR "Emulator OS System Info"
 
-	size_t center = (COLUMNS / 2) - (max_info_name_len + max_info_len + 1) / 2;
+	size_t columns = get_columns();
 
-	kprintf("%*s⁄%0mƒ*sø\n", center, "", max_info_name_len + max_info_len + 1, "");
+	size_t center = (columns / 2) - (max_info_name_len + max_info_len + 1) / 2;
 
-	kprintf("%*s≥%vfbq%=*s%vd≥\n", center, "", max_info_name_len + max_info_len + 1, EMULATOR_NAME_STR);
+	kprintf("%*s‚îå%0m‚îÄ*s‚îê\n", center, "", max_info_name_len + max_info_len + 1, "");
 
-	kprintf("%*s√%0mƒ*s¬%0mƒ*s¥\n", center, "", max_info_name_len, "", max_info_len, "");
+	kprintf("%*s‚îÇ%vfbq%=*s%vd‚îÇ\n", center, "", max_info_name_len + max_info_len + 1, EMULATOR_NAME_STR);
 
-	kprintf("%*s≥%=*s≥%=*s≥\n", center, "", max_info_name_len, "Category", max_info_len, "Information");
+	kprintf("%*s‚îú%0m‚îÄ*s‚î¨%0m‚îÄ*s‚î§\n", center, "", max_info_name_len, "", max_info_len, "");
 
-	kprintf("%*s√%0mƒ*s≈%0mƒ*s¥\n", center, "", max_info_name_len, "", max_info_len, "");
+	kprintf("%*s‚îÇ%=*s‚îÇ%=*s‚îÇ\n", center, "", max_info_name_len, "Category", max_info_len, "Information");
+
+	kprintf("%*s‚îú%0m‚îÄ*s‚îº%0m‚îÄ*s‚î§\n", center, "", max_info_name_len, "", max_info_len, "");
 
 	for (size_t i = 0; i < info_cnt; i++) {
-		kprintf("%*s≥ %vfby%*s%vd ≥ %vfbg%-*s%vd ≥\n", center, "", max_info_name_len - 2, info_names[i], max_info_len - 2, info[i]);
+		kprintf("%*s‚îÇ %vfby%-*s%vd ‚îÇ %vfbg%*s%vd ‚îÇ\n", center, "", max_info_name_len - 2, info_names[i], max_info_len - 2, info[i]);
 	}
 
-	kprintf("%*s¿%0mƒ*s¡%0mƒ*sŸ\n", center, "", max_info_name_len, "", max_info_len, "");
+	kprintf("%*s‚îî%0m‚îÄ*s‚î¥%0m‚îÄ*s‚îò\n", center, "", max_info_name_len, "", max_info_len, "");
 
 	size_t y = 0;
 
 	get_cursor_pos(nullptr, &y);
 
-	set_cursor_pos((COLUMNS / 2) - 16 / 2, y);
+	set_cursor_pos((columns / 2) - 16 / 2, y);
 	
 	for (size_t i = 0; i < 8; i++) {
 		set_style(i << 4); kprint("  ");
@@ -202,7 +206,7 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	set_style(0x0F);
 
-	set_cursor_pos((COLUMNS / 2) - 16 / 2, y + 1);
+	set_cursor_pos((columns / 2) - 16 / 2, y + 1);
 	
 	for (size_t i = 8; i < 16; i++) {
 		set_style(i << 4); kprint("  ");
@@ -220,20 +224,24 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	kprintf("%*s%=*s\n\r", center, "", strlen(note_message) - 1, "\"sfs info\" for sfs information");
 
+	kprintf("%*s%=*s\n\r", center, "", strlen(note_message) - 1, "\"pci info/scan\" for pci information");
+
 	kprint("\n");
 
 	return 0;
 }
 
 int logo_cmd(const byte **argv, size_t argc) {
+	size_t columns = get_columns();
+
 	for (size_t i = 0; i < sizeof(logo) / sizeof(logo[0]); i++) {
-		kprintf("%*s", (COLUMNS / 2) - (strlen(view_logo[i]) / 2), ""); kprintf(logo[i]);
+		kprintf("%*s", (columns / 2) - (strlen(view_logo[i]) / 2), ""); kprintf(logo[i]);
 	}
 
 	putch('\n');
 
 	for (size_t i = 0; i < sizeof(version_logo) / sizeof(version_logo[0]); i++) {
-		kprintf("%*s", (COLUMNS / 2) - (strlen(version_logo[i]) / 2), ""); kprintf(version_logo[i]);
+		kprintf("%*s", (columns / 2) - (strlen(version_logo[i]) / 2), ""); kprintf(version_logo[i]);
 	}
 
 	return 0;

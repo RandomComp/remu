@@ -4,6 +4,8 @@ CFLAGS := -Wall
 
 EMULATOR_CFLAGS := $(CFLAGS)
 
+#  -fsanitize=address -g
+
 OS_CFLAGS := -fPIC $(CFLAGS) -ffreestanding -nostdlib -nostdinc -fno-inline -fvisibility=hidden -fno-plt -fno-builtin -fno-builtin-functions -fno-common -fno-asynchronous-unwind-tables -fno-stack-protector -Wno-pointer-sign -D__EMULATOR__
 
 BAREMETAL_CFLAGS := $(CFLAGS) -m32 -ffreestanding
@@ -53,8 +55,13 @@ image:
 	@rm -f hdd.img
 
 	@cp kernel.bin img/boot/
-	
-	@grub-mkrescue img/ -o hdd.img
+
+	@xorrisofs -partition_offset 16 \
+    -o hdd.img \
+    -graft-points \
+    -b boot/grub/i386-pc/eltorito.img \
+    -no-emul-boot -boot-load-size 4 -boot-info-table \
+    img/
 	
 	@echo "Done!"
 

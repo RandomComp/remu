@@ -4,6 +4,8 @@
 
 #include "std.h"
 
+#include "terminal.h"
+
 #include "drivers/memory/memory.h"
 #include "drivers/io.h"
 
@@ -25,6 +27,8 @@
 
 #include "drivers/sfs/sfs.h"
 
+#include "drivers/video/vga.h"
+
 #include "emush/emush.h"
 
 #ifdef __EMULATOR__
@@ -35,8 +39,8 @@ static multiboot_section_t multiboot_section = {
 	.flags = 		0b00000111,
 	.checksum = 	-(0x1BADB002 + 0b00000111),
 	.mode_type = 	1,
-	.width = 		80,
-	.height = 		25,
+	.width = 		VGA_COLUMNS,
+	.height = 		VGA_ROWS,
 	.depth = 		16,
 };
 
@@ -51,52 +55,40 @@ PUBLIC multiboot_section_t* __emulator_read_multiboot_secton(void) {
 
 byte* ram = nullptr;
 
-void ata_int_handler(struct registers_t* regs) {
-	// kprintf("ATA ready\n");
-}
-
 static byte history[16][64] = { 0 };
 
 static ssize_t command_index = 0;
 
 multiboot_info_t* multiboot = nullptr;
 
-// const byte font[96][12] = {
-// 	#include "ascii.fnt"
-// };
+const byte font[96][12] = {
+	#include "ascii.fnt"
+};
+
+void report(const c_str msg) {
+	for (size_t i = 0; msg[i]; i++) {
+		out8(0x80, msg[i]);
+	}
+
+	out8(0x80, '\n');
+}
 
 PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 	if (magic != 0x2BADB002 || !_multiboot) return;
-
-	// uint32* fb = (uint32*)(_multiboot->fb_addr);
-
-	// uint32 width = _multiboot->fb_width;
-	// uint32 height = _multiboot->fb_height;
-	// uint32 pitch = (_multiboot->fb_pitch) / sizeof(uint32);
-
-	// // TODO: ??????????? ????????? ???????????? ? std.c, ????, ??? ????? ??????? ????????? ??????????? (??? VGA) ? ???????? ??
-
-	// for (size_t i = 0; i < width; i++) {
-	// 	size_t c_i = i % 8;
-
-	// 	for (size_t j = 0; j < height; j++) {
-	// 		size_t c_j = j % 12;
-
-	// 		if (font[(i / 8) % 96][c_j] & (1ULL << (7 - c_i))) {
-	// 			fb[i + (j * pitch)] = 0x00FF00;
-	// 		}
-	// 	}
-	// }
-	
-	// for (;;) halt();
-
-	// return;
 
 	multiboot = _multiboot;
 
 	ram = (byte*)get_ram();
 
-	init_std(ram + 0xB8000);
+	init_vga();
+
+	terminal_out_t stdout = init_vga_stdout();
+
+	kbdps2_init();
+
+	terminal_in_t stdin = init_kbdps2_stdin();
+
+	init_std(stdout, stdin);
 
 	byte style = COLOR_BRIGHT_WHITE | (COLOR_BLACK << 4);
 
@@ -116,25 +108,17 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 
 	kprintf(" %vfbgdone\n");
 
-	kprintf("%vfbyKeyboard PS/2 initialization...");
+	uintmax_t result = 10;
 
-	kbdps2_init();
+	size_t readed_len = 0;
 
-	kprintf(" %vfbgdone\n");
+	int err = parse_num("RDEV", 28, &result, &readed_len); // 0123456789ABCDEFGHIJKLMNOPQR
 
-	IDTIRQInstallHandler(0x0E, ata_int_handler);
+	kprintf("parse_num err: %i\n", err);
+	kprintf("parse_num readed len: %zu\n", readed_len);
+	kprintf("parse_num result: %n\n", result, 28);
 
-	// byte name[64] = { 0 };
-
-	// byte second_name[64] = { 0 };
-
-	// int num = 10;
-
-	// sscanf("12345 hello3289239823092389 test ", "%i %s %s", &num, name, second_name);
-
-	// kprintf("\"%9s\"\n", "12345");
-
-	// sfs_format(ATA_MASTER);
+	time_cmd(nullptr, 0);
 
 	while (true) {
 		kprintf(get_var("PS1"));
@@ -152,4 +136,3 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 
 	for (;;) halt();
 }
-

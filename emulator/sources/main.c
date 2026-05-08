@@ -1,6 +1,6 @@
 #include "main.h"
 
-// Код этого эмулятора 0xEA32
+// ╨Ü╨╛╨┤ ╤ì╤é╨╛╨│╨╛ ╤ì╨╝╤â╨╗╤Å╤é╨╛╤Ç╨░ 0xEA32
 
 #include "types.h"
 
@@ -49,9 +49,7 @@ static emulator_t* emulator = nullptr;
 
 logger_t* logger = nullptr;
 
-// TODO: Сделать двойной буфер видеопамяти
-
-// TODO: Сделать таблицу прерываний и их настройку
+// TODO: ╨í╨┤╨╡╨╗╨░╤é╤î ╨┤╨▓╨╛╨╣╨╜╨╛╨╣ ╨▒╤â╤ä╨╡╤Ç ╨▓╨╕╨┤╨╡╨╛╨┐╨░╨╝╤Å╤é╨╕
 
 static void on_emulator_exit() {
 	if (orig_termios) {
@@ -103,17 +101,16 @@ void exit_emulator(int code) {
 
 	// exit(code);
 
-	if (emulator) emulator->running = false;
+	if (!emulator) return;
+
+	stop_emulator(emulator);
+	
+	emulator->running = false;
 }
 
 void imd_exit_emulator(int code) {
 	if (emulator) {
-		emulator->running = false;
-
-		if (emulator->kmain_thread > 0)
-			pthread_cancel(emulator->kmain_thread);
-		
-		emulator->kmain_thread = 0;
+		exit_emulator(0);
 
 		#ifndef EMULATOR_SDL_USING
 		emulator_release_tick_timer(emulator, handle_keys_cli);
@@ -137,62 +134,6 @@ void imd_exit_emulator(int code) {
 // extern void printf(const char* format, int len);
 
 // extern void exit123(int);
-
-typedef struct __init_kernel_args_t {
-	void* (*__emulator_get_ram)(void);
-
-	_size_t (*__emulator_port_in)(uint16 port);
-
-	void (*__emulator_port_out)(uint16 port, _size_t value);
-
-	void (*__emulator_wait_halt)(void);
-
-	void (*__emulator_sti)(void);
-
-	void (*__emulator_cli)(void);
-
-	uint64 (*__emulator_start_tsc)(void);
-
-	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
-
-	void (*__emulator_kernel_report)(const c_str msg);
-} __init_kernel_args_t;
-
-static void* emulator_get_ram() {
-	if (!emulator) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "[CALLING FROM KERNEL] Cannot get the emulator ram: emulator not initialized");
-
-		return nullptr;
-	}
-
-	return emulator->ram->mem_ptr;
-}
-
-static bool cpu_need_to_halt = false;
-
-static uint64 itval_ns = 0;
-
-static void wait_halt() {
-	usleep(itval_ns / 1000);
-
-	cpu_need_to_halt = true;
-}
-
-static void set_sti(void) {
-	if (!emulator || !emulator->cpu || !emulator->cpu->pic) return;
-
-	set_sti_pic(emulator->cpu->pic);
-}
-
-static void set_cli(void) {
-	if (!emulator || !emulator->cpu || !emulator->cpu->pic) return;
-
-	set_cli_pic(emulator->cpu->pic);
-}
-
-static uint64 start_tsc() {
-	return emulator && emulator->cpu ? emulator->cpu->tsc_start : 0;
-}
 
 static void report(const c_str msg) {
 	emulator_log(true, LOG_SEVERITY_REPORT, msg ? msg : "No message provided.");
@@ -284,58 +225,12 @@ int main(int argc, const char** argv) {
 	#endif
 
 	// get_terminal_size(&columns, &rows);
-
-	emulator_log(true, LOG_SEVERITY_INFO, "Kernel \"%s\" loading...", so_name);
-
-	void* os_handle = dlopen(so_name, RTLD_NOW);
-
-	if (!os_handle) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "dlopen error: %s. Did you forgot to compile kernel?", dlerror());
-
-		return 1;
-	}
-
-	void (*__emulator_init_kernel)(__init_kernel_args_t kernel_args);
-
-	multiboot_section_t* (*__emulator_read_multiboot_secton)(void);
-
-	void (*kmain)(uint32 magic, multiboot_info_t* multiboot);
-
-	__emulator_init_kernel = dlsym(os_handle, "__emulator_init_kernel");
 	
-	if (!__emulator_init_kernel) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"__emulator_init_kernel\" in provided \"%s\". Please verify the function name.", so_name);
-
-		dlclose(os_handle);
-
-		return 1;
-	}
-
-	__emulator_read_multiboot_secton = dlsym(os_handle, "__emulator_read_multiboot_secton");
-	
-	if (!__emulator_read_multiboot_secton) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"__emulator_read_multiboot_secton\" in provided \"%s\". Please verify the function name.", so_name);
-
-		dlclose(os_handle);
-
-		return 1;
-	}
-
-	kmain = dlsym(os_handle, "kmain");
-
-	if (!kmain) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"kmain\" in provided \"%s\". Please verify the function name.", so_name);
-
-		dlclose(os_handle);
-
-		return 1;
-	}
-
-	emulator_log(true, LOG_SEVERITY_INFO, "Kernel \"%s\" loaded!", so_name);
+	kernel_t* kernel = emulator_load_kernel(so_name);
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Reading multiboot section from kernel \"%s\"...", so_name);
 
-	multiboot_section_t* multiboot_section = __emulator_read_multiboot_secton();
+	multiboot_section_t* multiboot_section = kernel->__emulator_read_multiboot_secton();
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Multiboot section from kernel \"%s\" readed", so_name);
 
@@ -386,27 +281,8 @@ int main(int argc, const char** argv) {
 	SDL_SetWindowPosition(emulator->window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 	#endif
 
-	emulator_log(true, LOG_SEVERITY_INFO, "Kernel initializing...");
-
-	__init_kernel_args_t kernel_args = { 0 };
-
-	kernel_args.__emulator_get_ram = emulator_get_ram;
-	kernel_args.__emulator_port_in = port_in;
-	kernel_args.__emulator_port_out = port_out;
-	kernel_args.__emulator_wait_halt = wait_halt;
-	kernel_args.__emulator_sti = set_sti;
-	kernel_args.__emulator_cli = set_cli;
-	kernel_args.__emulator_start_tsc = start_tsc;
-	kernel_args.__emulator_idt_flush = idt_flush_emulator;
-
-	__emulator_init_kernel(kernel_args);
-
-	emulator_log(true, LOG_SEVERITY_INFO, "Kernel initialized!");
-
 	if (!emulator) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Emulator initializing error");
-
-		dlclose(os_handle);
 
 		imd_exit_emulator(1);
 
@@ -429,124 +305,21 @@ int main(int argc, const char** argv) {
 		draw_vga_text(emulator->vga_gpu, msg, 0x1F, centered_column, centered_row);
 	}
 
-	pthread_t kmain_thread = run_emulator(emulator, kmain);
+	emulator->kernel = kernel;
 
-	// emulator->running = true;
+	pthread_t kmain_thread = 0;
 
-	#ifdef EMULATOR_SDL_USING
-	
-	SDL_Event event;
+	emulator->running = true;
 
-	int win_x = 0, win_y = 0;
+	emulator_forced_update_all_timers(emulator);
 
-	while (emulator && emulator->running) {
-		while (SDL_PollEvent(&event)) {
-			if (event.type == SDL_QUIT) {
-				emulator_log(true, LOG_SEVERITY_INFO, "Exiting emulator because pressed quit button...");
+	while (emulator->running || emulator->is_hardware_reseting) {
+		kmain_thread = run_emulator(emulator);
 
-				emulator->running = false; break;
-			}
-
-			if (event.type == SDL_KEYDOWN) {
-				bool is_ctrl = (event.key.keysym.mod & KMOD_CTRL) || (event.key.keysym.mod & KMOD_GUI);
-				bool is_shift = (event.key.keysym.mod & KMOD_SHIFT);
-
-				if (multiboot_section->mode_type != 0) {
-					if (is_ctrl && is_shift) {
-						switch (event.key.keysym.sym) {
-							case SDLK_c:
-								handle_copy_selected();
-								break;
-							case SDLK_v:
-								handle_paste_selected();
-								break;
-							
-							default:
-								break;
-						}
-					}
-
-					else
-						handle_key_gui(event.key.keysym.scancode, false);
-				}
-
-				else
-					handle_key_gui(event.key.keysym.scancode, false);
-			}
-
-			else if (event.type == SDL_KEYUP) {
-				handle_key_gui(event.key.keysym.scancode, true);
-			}
-
-			if (multiboot_section->mode_type != 0) {
-				if (event.type == SDL_MOUSEBUTTONDOWN) {
-					if (event.button.button == 1) {
-						SDL_GetWindowSize(emulator->window, &win_x, &win_y);
-
-						handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, false);
-					}
-				}
-
-				else if (event.type == SDL_MOUSEBUTTONUP) {
-					if (event.button.button == 1) {
-						SDL_GetWindowSize(emulator->window, &win_x, &win_y);
-
-						handle_mouse_button(event.motion.x, event.motion.y, win_x, win_y, true);
-					}
-				}
-
-				else if (event.type == SDL_MOUSEMOTION) {
-					SDL_GetWindowSize(emulator->window, &win_x, &win_y);
-
-					handle_mouse_move(event.motion.x, event.motion.y, win_x, win_y);
-				}
-			}
-		}
-
-		if (!emulator->is_hardware_reseting)
-			emulator_update_all(emulator);
-
-		SDL_SetRenderDrawColor(emulator->renderer, 0, 0, 0, 255);
-		SDL_RenderClear(emulator->renderer);
-
-		// TODO: обновлять экран только при необходимости
-
-		SDL_RenderCopy(emulator->renderer, emulator->screen_texture, null, null);
-
-		SDL_RenderPresent(emulator->renderer);
-
-		if (!(emulator->cpu->halted) && cpu_need_to_halt) {
-			set_halt(emulator->cpu);
-		}
-			
-		itval_ns = cpu_get_itval_ns(emulator->cpu);
-
-		// SDL_Delay((uint32)(itval_ns / 1000000));
-
-		usleep(itval_ns / 1000);
+		main_loop(emulator, multiboot_section);
 	}
-	#else
-	emulator_setup_tick_timer(emulator, handle_keys_cli, 10);
-
-	while (emulator && emulator->running) {
-		if (!emulator->is_hardware_reseting)
-			emulator_update_all(emulator);
-
-		if (!(emulator->cpu->halted) && cpu_need_to_halt) {
-			set_halt(emulator->cpu);
-		}
-			
-		itval_ns = cpu_get_itval_ns(emulator->cpu);
-
-		usleep(itval_ns / 1000);
-	}
-	#endif
-	
-	emulator_release_tick_timer(emulator, handle_keys_cli);
 	
 	imd_exit_emulator(0);
-
-	if (os_handle) dlclose(os_handle); os_handle = nullptr;
 
 	#ifndef EMULATOR_SDL_USING
 	printf(visible_cursor);
