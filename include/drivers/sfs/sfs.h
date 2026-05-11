@@ -4,20 +4,22 @@
 #include "types.h"
 
 #define SFS_MAX_SECTORS 64
+#define SFS_SECTOR_DATA (512 - sizeof(uint32) - sizeof(bool))
+#define SFS_SECTOR_MAX_LABLES (SFS_SECTOR_DATA / sizeof(sfs_label_t))
 
-typedef struct PACKED sfs_file_label_t {
-	uint32 data_start;
+typedef struct PACKED sfs_label_t {
+	uint32 data_lba;
 
 	uint32 name_size;
 
 	/* name */
-} sfs_file_label_t;
+} sfs_label_t;
 
-typedef struct PACKED sfs_file_sector_t {
-	byte data[512 - sizeof(uint32) - sizeof(bool)];
+typedef struct PACKED sfs_sector_t {
+	byte data[SFS_SECTOR_DATA]; // content for files, sfs_labels_t for superblock
 
 	uint32 next_sector; bool is_not_end;
-} sfs_file_sector_t;
+} sfs_sector_t;
 
 typedef struct PACKED sfs_file_table_t {
 	byte always_rdevsfs[7]; uint16 version;
@@ -25,7 +27,7 @@ typedef struct PACKED sfs_file_table_t {
 	uint32 sectors_cnt; byte sector_map[SFS_MAX_SECTORS / 8];
 
 	uint32 labels_cnt;
-
+	
 	/* labels */
 } sfs_file_table_t;
 
@@ -44,7 +46,7 @@ byte* sfs_err_description(sfs_error_e err);
 
 sfs_error_e sfs_format(byte drive);
 
-sfs_error_e sfs_find_file(byte drive, const byte* filename, sfs_file_label_t** file_label_ptr, bool* _ok);
+sfs_error_e sfs_find_file(byte drive, const byte* filename, sfs_label_t** file_label_ptr, bool* _ok);
 
 sfs_error_e sfs_write_file_sector(byte drive, sfs_file_table_t* table, const byte* data, uint32 sector_st, uint32 size);
 

@@ -37,10 +37,10 @@ static inline _time_t is_year_leap(_time_t year) {
 	return year % 4 == 0 && year % 100 != 0 || year % 400 == 0;
 }
 
-static _time_t year_day_from_unix_time(_time_t time) {
-	_time_t days = day_from_unix_time(time);
+static _time_t year_day_from_unix_time(_time_t time, _time_t* years) {
+	_time_t days = day_from_unix_time(time) + 1;
 
-	_time_t year = 0; _time_t year_days = 365;
+	_time_t year = 1970; _time_t year_days = 365;
 
 	while (days >= year_days) {
 		year += 1;
@@ -49,6 +49,35 @@ static _time_t year_day_from_unix_time(_time_t time) {
 
 		days -= year_days;
 	}
+
+	if (years) *years = year;
+
+	return days;
+}
+
+static _time_t month_day_from_unix_time(_time_t time, _time_t* _month) {
+	_time_t years = 0;
+	
+	_time_t days = year_day_from_unix_time(time, &years);
+
+	_time_t month = 0; _time_t month_days = 31;
+
+	const _time_t month_days_cnt[] = {
+		31, 28, 31,
+		30, 31, 30,
+		31, 31, 30,
+		31, 30, 31
+	};
+
+	while (days >= month_days) {
+		month_days = (month == 1 && is_year_leap(years)) ? 29 : month_days_cnt[month];
+
+		days -= month_days;
+		
+		month += 1;
+	}
+
+	if (_month) *_month = month + 1;
 
 	return days;
 }
@@ -110,11 +139,9 @@ static inline struct_time_t struct_time_from_unix_time(_time_t time) {
 
 	result.hour = hour_from_unix_time(time);
 
-	result.day_of_month = year_day_from_unix_time(time);
+	result.day_of_month = month_day_from_unix_time(time, &result.month);
 
 	result.day_of_week = day_from_unix_time(time);
-
-	result.month = day_from_unix_time(time);
 
 	result.year = year_from_unix_time(time);
 

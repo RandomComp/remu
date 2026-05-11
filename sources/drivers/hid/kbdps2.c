@@ -26,7 +26,7 @@ static byte updated_key = 0; static key_state_t updated_key_state = KEY_STATE_NU
 
 static byte scancode_to_c[] = {
 	[SCANCODE_NULL] = 			'\0',
-	[SCANCODE_ESCAPE] = 		'\x1B',
+	[SCANCODE_ESCAPE] = 		0x80,
 	[SCANCODE_0] = 				'0',
 	[SCANCODE_1] = 				'1',
 	[SCANCODE_2] = 				'2',
@@ -84,7 +84,7 @@ static byte shift(byte c) {
 	if (isalpha(c))
 		return upper(c);
 
-	const c_str shitftable_syms = "1234567880-=[]\\;'`/,.";
+	const byte* shitftable_syms = "1234567880-=[]\\;'`/,.";
 
 	bool is_c_shiftable = false;
 
@@ -126,7 +126,7 @@ static byte shift(byte c) {
 static bool isshifted(uint8 c) {
 	if (isupper(c)) return true;
 
-	const c_str shifted_sym = "!@#$%^&*()_+?<>~";
+	const byte* shifted_sym = "!@#$%^&*()_+?<>~";
 
 	for (size_t i = 0; i < strlen(shifted_sym); i++) {
 		if (c == shifted_sym[i]) return true;
@@ -138,7 +138,7 @@ static bool isshifted(uint8 c) {
 static uint8 unshift(uint8 c) {
 	if (isalpha(c)) return lower(c);
 
-	const c_str unshitftable_syms = "!@#$%^&*()_+?<>~";
+	const byte* unshitftable_syms = "!@#$%^&*()_+?<>~";
 
 	bool is_c_unshiftable = false;
 

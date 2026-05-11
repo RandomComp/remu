@@ -18,9 +18,21 @@ struct vga_text_device_t {
 	
 	_size_t width, height, bpp;
 	
-	_size_t cursor_pos;
+	_ssize_t cursor_pos;
 
+	/*
+	bits 0-4 is cursor start
+	bit 5 is cursor disable
+	bits 6-7 reserved
+	*/
 	byte crt_reg_a;
+
+	/*
+	bits 0-4 is cursor end
+	bit 5-6 is cursor skew (ignored)
+	bit 7 reserved
+	*/
+	byte crt_reg_b;
 
 	byte mode_reg;
 
@@ -35,7 +47,7 @@ void handle_mouse_move(size_t x, size_t y, int win_x, int win_y);
 
 void handle_mouse_button(size_t x, size_t y, int win_x, int win_y, bool released);
 
-int draw_vga_text(vga_text_device_t* device, const c_str text, byte style, _size_t column, _size_t row);
+int draw_vga_text(vga_text_device_t* device, const byte* text, byte style, _size_t column, _size_t row);
 
 void free_vga_text_device(vga_text_device_t* device);
 

@@ -29,6 +29,8 @@
 
 #include "drivers/video/vga.h"
 
+#include "drivers/time/cmos.h"
+
 #include "emush/emush.h"
 
 #ifdef __EMULATOR__
@@ -44,8 +46,8 @@ static multiboot_section_t multiboot_section = {
 	.depth = 		16,
 };
 
-PUBLIC void __emulator_init_kernel(__init_kernel_args_t _kernel_args) {
-	kernel_args = _kernel_args;
+PUBLIC void __emulator_init_kernel(__init_kernel_args_t* _kernel_args) {
+	kernel_args = *_kernel_args;
 }
 
 PUBLIC multiboot_section_t* __emulator_read_multiboot_secton(void) {
@@ -65,12 +67,28 @@ const byte font[96][12] = {
 	#include "ascii.fnt"
 };
 
-void report(const c_str msg) {
+void report(const byte* msg) {
 	for (size_t i = 0; msg[i]; i++) {
 		out8(0x80, msg[i]);
 	}
 
 	out8(0x80, '\n');
+}
+
+static byte msg[64] = "\0"; size_t msg_index = 0;
+
+byte read_ch(void) {
+	if (msg_index < strlen(msg)) {
+		byte result = msg[msg_index];
+
+		msg_index++;
+
+		return result;
+	}
+
+	else return kbdps2_getch();
+	
+	return 0;
 }
 
 PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
@@ -86,7 +104,9 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 
 	kbdps2_init();
 
-	terminal_in_t stdin = init_kbdps2_stdin();
+	terminal_in_t stdin = { 0 };
+
+	stdin.getch = read_ch;
 
 	init_std(stdout, stdin);
 
@@ -108,20 +128,38 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 
 	kprintf(" %vfbgdone\n");
 
-	uintmax_t result = 10;
+	// uintmax_t result = 10;
 
-	size_t readed_len = 0;
+	// size_t readed_len = 0;
 
-	int err = parse_num("RDEV", 28, &result, &readed_len); // 0123456789ABCDEFGHIJKLMNOPQR
+	// int err = parse_num("RDEV", 32, &result, &readed_len); // 0123456789ABCDEFGHIJKLMNOPQRSTUV
 
-	kprintf("parse_num err: %i\n", err);
-	kprintf("parse_num readed len: %zu\n", readed_len);
-	kprintf("parse_num result: %n\n", result, 28);
+	// kprintf("parse_num err: %i\n", err);
+	// kprintf("parse_num readed len: %zu\n", readed_len);
+	// kprintf("parse_num result: %n\n", result, 32);
 
-	time_cmd(nullptr, 0);
+	// sfs_create_file(ATA_MASTER, "autoexec", "calc\r10\r123\r123\r*\r10\r", 22);
+
+	sfs_error_e err = sfs_read_file(ATA_MASTER, "autoexec", msg, 0, 63, nullptr);
+
+	// for (size_t i = 0; i < 50; i++) {
+	// 	byte buf[16] = { 0 };
+	// 	byte buf2[32] = { 0 };
+
+	// 	snprintf(buf, 16, "%zu.txt", i);
+	// 	snprintf(buf2, 32, "some content of file %zu.txt", i);
+
+	// 	sfs_create_file(ATA_MASTER, buf, buf2, 32);
+	// }
+
+	set_cursor_pos(0, 0, true);
 
 	while (true) {
-		kprintf(get_var("PS1"));
+		byte* ps1 = "";
+
+		get_var("PS1", &ps1);
+
+		kprintf(ps1);
 
 		emush_get_history(history);
 

@@ -3,7 +3,7 @@
 
 #include "types.h"
 
-#include <bits/types/FILE.h>
+#include <stdio.h>
 
 #include "pci/emulator_pci_fwd.h"
 

@@ -41,11 +41,14 @@ static void sig_winch(int UNUSED sig);
 
 const int cpu_signals[] = {
 	SIGHUP, SIGINT, SIGILL, SIGTRAP, SIGABRT, 
-	SIGBUS, SIGFPE, SIGSEGV, SIGTERM, SIGSTKFLT, 
+	SIGBUS, SIGFPE, SIGSEGV, SIGTERM,
+	#ifdef IS_WIN
+	SIGSTKFLT,
+	#endif 
 	SIGTSTP, SIGXCPU, SIGXFSZ, SIGWINCH
 };
 
-signal_handler_t cpu_signals_handler[14];
+signal_handler_t cpu_signals_handler[14] = { 0 };
 
 const size_t cpu_signals_cnt = sizeof(cpu_signals) / sizeof(cpu_signals[0]);
 

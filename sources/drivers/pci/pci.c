@@ -642,14 +642,14 @@ void pci_show_device_info(byte bus, byte slot, byte func) {
 	snprintf(data[4], 64, "%s (0x%.4x)", subsys_device_name, subsys_device_id);
 	snprintf(data[5], 64, "0x%.2x:0x%.2x:0x%.2x", bus, slot, func);
 
-	ssize_t info_category_max_len = 0;
+	size_t info_category_max_len = 0;
 
-	ssize_t info_max_len = 0;
+	size_t info_max_len = 0;
 
-	for (ssize_t i = 0; i < info_cnt; i++) {
+	for (size_t i = 0; i < info_cnt; i++) {
 		byte* info_category = info_categories[i];
 
-		ssize_t info_category_len = strlen(info_category);
+		size_t info_category_len = strlen(info_category);
 
 		if (info_category_len > info_category_max_len) {
 			info_category_max_len = info_category_len;
@@ -657,14 +657,14 @@ void pci_show_device_info(byte bus, byte slot, byte func) {
 
 		byte* info_data = data[i];
 
-		ssize_t info_data_len = strlen(info_data);
+		size_t info_data_len = strlen(info_data);
 
 		if (info_data_len > info_max_len) {
 			info_max_len = info_data_len;
 		}
 	}
 
-	ssize_t table_width = 1 + 1 + info_category_max_len + 1 + 1 + info_max_len + 1 + 1;
+	size_t table_width = 1 + 1 + info_category_max_len + 1 + 1 + info_max_len + 1 + 1;
 
 	ssize_t old_info_max_len = info_max_len;
 

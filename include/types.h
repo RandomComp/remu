@@ -1,15 +1,17 @@
 #ifndef _EMULATOR_OS_BASIC_TYPES_H
 #define _EMULATOR_OS_BASIC_TYPES_H
 
-// Полностью заимствованно из Random OS Boosted
-
-#define true 1
-
-#define false 0
+// ╨ƒ╨╛╨╗╨╜╨╛╤ü╤é╤î╤Ä ╨╖╨░╨╕╨╝╤ü╤é╨▓╨╛╨▓╨░╨╜╨╜╨╛ ╨╕╨╖ Random OS Boosted
 
 #define PACKED __attribute__((packed))
 #define UNUSED __attribute__((unused))
-#define PUBLIC __attribute__((visibility("default"))) 
+
+#if defined(_WIN32) || defined(__MINGW32__)
+    #define PUBLIC __attribute__((dllexport))
+#else
+    #define PUBLIC __attribute__((visibility("default")))
+#endif
+
 #define PRIVATE __attribute__((visibility("hidden"))) 
 
 #define INT8_MIN (int8)(0x80)
@@ -127,11 +129,14 @@ typedef int64 ssize_t;
 
 #endif
 
-typedef unsigned char* c_str;
-
-typedef c_str* c_str_ptr;
-
+#ifndef __bool_true_false_are_defined
 typedef _Bool bool;
+
+#define true 1
+#define false 0
+#endif
+
+// TODO: ╨₧╨┐╤Ç╨╡╨┤╨╡╨╗╨╕╤é╤î ╨╝╨░╨║╤Ç╨╛╤ü╤ï ╨┤╨╗╤Å ╤ü╨╕╨╝╨▓╨╛╨╗╨╛╨▓ ╨┐╤ü╨╡╨▓╨┤╨╛╨│╤Ç╨░╤ä╨╕╨║╨╕
 
 typedef uint8 byte;
 

@@ -1,11 +1,11 @@
 #ifndef _EMULATOR_OS_MATH_H
 #define _EMULATOR_OS_MATH_H
 
-// Полностью заимствованно из Random OS Boosted
+// ╨ƒ╨╛╨╗╨╜╨╛╤ü╤é╤î╤Ä ╨╖╨░╨╕╨╝╤ü╤é╨▓╨╛╨▓╨░╨╜╨╜╨╛ ╨╕╨╖ Random OS Boosted
 
 #include "types.h"
 
-// Макросы
+// ╨£╨░╨║╤Ç╨╛╤ü╤ï
 
 #define PI 3.1415926535
 
@@ -23,11 +23,11 @@
 
 #define ABS(x) ((x) < 0 ? -(x) : (x))
 
-// Лучше использовать аналогичные функции ( они типобезопаснее, используют эти макросы для упрощения )
+// ╨¢╤â╤ç╤ê╨╡ ╨╕╤ü╨┐╨╛╨╗╤î╨╖╨╛╨▓╨░╤é╤î ╨░╨╜╨░╨╗╨╛╨│╨╕╤ç╨╜╤ï╨╡ ╤ä╤â╨╜╨║╤å╨╕╨╕ ( ╨╛╨╜╨╕ ╤é╨╕╨┐╨╛╨▒╨╡╨╖╨╛╨┐╨░╤ü╨╜╨╡╨╡, ╨╕╤ü╨┐╨╛╨╗╤î╨╖╤â╤Ä╤é ╤ì╤é╨╕ ╨╝╨░╨║╤Ç╨╛╤ü╤ï ╨┤╨╗╤Å ╤â╨┐╤Ç╨╛╤ë╨╡╨╜╨╕╤Å )
 
 typedef struct ProcessorMathState {
-	bool bOverflow; // Флаг переполнения типа
-	size_t divRem; // Остаток от деления, вычисленный при вычислении деления
+	bool bOverflow; // ╨ñ╨╗╨░╨│ ╨┐╨╡╤Ç╨╡╨┐╨╛╨╗╨╜╨╡╨╜╨╕╤Å ╤é╨╕╨┐╨░
+	size_t divRem; // ╨₧╤ü╤é╨░╤é╨╛╨║ ╨╛╤é ╨┤╨╡╨╗╨╡╨╜╨╕╤Å, ╨▓╤ï╤ç╨╕╤ü╨╗╨╡╨╜╨╜╤ï╨╣ ╨┐╤Ç╨╕ ╨▓╤ï╤ç╨╕╤ü╨╗╨╡╨╜╨╕╨╕ ╨┤╨╡╨╗╨╡╨╜╨╕╤Å
 } ProcessorMathState;
 
 bool getOverflowFlag();
@@ -73,9 +73,9 @@ static inline double trunc(double x) {
 
 static inline float ftrunc(float x) {
 	if (x != x)						return x;	// NaN
-	if (x == 0.0f || x == -0.0f)	return x;	// ±0
-	if (x == 1.0f / 0.0f)			return x;	// +∞
-	if (x == -1.0f / 0.0f)			return x;	// -∞
+	if (x == 0.0f || x == -0.0f)	return x;	// ┬▒0
+	if (x == 1.0f / 0.0f)			return x;	// +Γê₧
+	if (x == -1.0f / 0.0f)			return x;	// -Γê₧
 
 	union {
 		float f;
@@ -148,13 +148,13 @@ uint16 getCountDecimalPlaces(double x);
 static inline int32 fscaleToInteger(float x) {
 	if (x == 0.0f) return 0;
 
-	return x * pow64(10, fgetCountDecimalPlaces(x));
+	return (int32)(x * pow64(10, fgetCountDecimalPlaces(x)));
 }
 
 static inline int64 scaleToInteger(double x) {
 	if (x == 0.0f) return 0;
 
-	return x * pow64(10, getCountDecimalPlaces(x));
+	return (int64)(x * pow64(10, getCountDecimalPlaces(x)));
 }
 
 static inline bool isPowerOfTwoU32(size_t x) {

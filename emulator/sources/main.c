@@ -131,22 +131,9 @@ void imd_exit_emulator(int code) {
 	logger = nullptr;
 }
 
-// extern void printf(const char* format, int len);
-
-// extern void exit123(int);
-
-static void report(const c_str msg) {
-	emulator_log(true, LOG_SEVERITY_REPORT, msg ? msg : "No message provided.");
-
-	// free_emulator(emulator);
-
-	// exit(0xBD);
-
-	// #ifdef EMULATOR_SDL_USING
-	// IMG_Quit();
-	// SDL_Quit();
-	// #endif
-}
+#ifdef IS_WIN
+#warning "This emulator now is not fully supported on windows, use it for your own risk"
+#endif
 
 int main(int argc, const char** argv) {
 	#ifdef IS_WIN
@@ -171,7 +158,7 @@ int main(int argc, const char** argv) {
 		return 1;
 	}
 
-	const c_str so_name = argv[1];
+	const byte* so_name = argv[1];
 
 	atexit(on_emulator_exit);
 
@@ -182,7 +169,7 @@ int main(int argc, const char** argv) {
 		return 1;
 	}
 
-	if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG)) {
+	if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot initialize SDL IMG subsystem (for loading font): %s", IMG_GetError());
 
 		SDL_Quit();
@@ -228,15 +215,17 @@ int main(int argc, const char** argv) {
 	
 	kernel_t* kernel = emulator_load_kernel(so_name);
 
+	if (!kernel) return 1;
+
 	emulator_log(true, LOG_SEVERITY_INFO, "Reading multiboot section from kernel \"%s\"...", so_name);
 
 	multiboot_section_t* multiboot_section = kernel->__emulator_read_multiboot_secton();
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Multiboot section from kernel \"%s\" readed", so_name);
 
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->magic = %u", multiboot_section->magic);
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->flags = %u", multiboot_section->flags);
-	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->checksum = %u", multiboot_section->checksum);
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->magic = %x", multiboot_section->magic);
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->flags = %8b", multiboot_section->flags);
+	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->checksum = %x", multiboot_section->checksum);
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->unused_0 = %u", multiboot_section->unused_0);
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->unused_1 = %u", multiboot_section->unused_1);
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "multiboot_section->unused_2 = %u", multiboot_section->unused_2);
@@ -296,7 +285,7 @@ int main(int argc, const char** argv) {
 	emulator_log(true, LOG_SEVERITY_INFO, "Initialization duration: %llu us", emulator_init_dur);
 
 	if (multiboot_section->mode_type != 0) {
-		const c_str msg = "OS Booting (Loader message)..."; const size_t msg_len = strlen(msg);
+		const byte* msg = "OS Booting (Loader message)..."; const size_t msg_len = strlen(msg);
 
 		const _size_t centered_column = (emulator->vga_gpu->width / 2) - (msg_len / 2);
 

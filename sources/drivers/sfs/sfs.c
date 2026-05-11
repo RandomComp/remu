@@ -14,7 +14,7 @@
 
 static byte sfs_superblock_buf[512] = { 0 };
 
-static sfs_file_sector_t file_sector_buf = { 0 };
+static sfs_sector_t file_sector_buf = { 0 };
 
 byte* sfs_err_description(sfs_error_e err) {
 	switch (err) {
@@ -150,7 +150,7 @@ static ssize_t found_in_bitmap_best_fit(size_t size, byte* bitmap, size_t bitmap
 	return ok ? start : -1;
 }
 
-sfs_error_e sfs_find_file(byte drive, const byte* filename, sfs_file_label_t** file_label_ptr, bool* _ok) {
+sfs_error_e sfs_find_file(byte drive, const byte* filename, sfs_label_t** file_label_ptr, bool* _ok) {
 	if (filename == nullptr) {
 		return SFS_ERROR_EMPTY_FILENAME;
 	}
@@ -178,9 +178,9 @@ sfs_error_e sfs_find_file(byte drive, const byte* filename, sfs_file_label_t** f
 	uint32 offset = 0;
 
 	for (uint32 i = 0; i < table->labels_cnt; i++) {
-		sfs_file_label_t* label = ((byte*)after_tabel + offset);
+		sfs_label_t* label = (sfs_label_t*)((byte*)after_tabel + offset);
 
-		byte* name = after_tabel + offset + sizeof(sfs_file_label_t);
+		byte* name = after_tabel + offset + sizeof(sfs_label_t);
 
 		if (strncmp(name, filename, MAX(filename_len, label->name_size)) == 0) {
 			if (_ok) *_ok = true;
@@ -190,7 +190,7 @@ sfs_error_e sfs_find_file(byte drive, const byte* filename, sfs_file_label_t** f
 			return SFS_OK;
 		}
 
-		offset += sizeof(sfs_file_label_t) + label->name_size;
+		offset += sizeof(sfs_label_t) + label->name_size;
 	}
 	
 	if (_ok) *_ok = false;
@@ -203,7 +203,7 @@ sfs_error_e sfs_write_file_sector(byte drive, sfs_file_table_t* table, const byt
 		return SFS_ERROR_EMPTY_DATA;
 	}
 
-	int32 offset = 0;
+	uint32 offset = 0;
 
 	uint32 data_sectors_size = MAX(1, align_up(size, sizeof(file_sector_buf.data)) / sizeof(file_sector_buf.data));
 
@@ -212,7 +212,7 @@ sfs_error_e sfs_write_file_sector(byte drive, sfs_file_table_t* table, const byt
 		
 		memset(&file_sector_buf, 0, sizeof(file_sector_buf));
 
-		int32 diff = MIN(sizeof(file_sector_buf.data), size - offset);
+		uint32 diff = MIN(sizeof(file_sector_buf.data), size - offset);
 
 		if (diff > 0) {
 			memcpy(file_sector_buf.data, data + offset, diff);
@@ -291,41 +291,41 @@ sfs_error_e sfs_create_file(byte drive, const byte* filename, const byte* conten
 
 	uint32 data_sectors_size = MAX(1, align_up(size, sizeof(file_sector_buf.data)) / sizeof(file_sector_buf.data));
 
-	int32 data_start = found_in_bitmap_best_fit(data_sectors_size, table->sector_map, sizeof(table->sector_map));
+	int32 data_lba = found_in_bitmap_best_fit(data_sectors_size, table->sector_map, sizeof(table->sector_map));
 
-	if (data_start <= 0) {
+	if (data_lba <= 0) {
 		return SFS_ERROR_NOT_ENGH_MMRY;
 	}
 
 	for (uint32 i = 0; i < data_sectors_size; i++) {
-		table->sector_map[(data_start + i) / 8] |= (1 << ((data_start + i) % 8));
+		table->sector_map[(data_lba + i) / 8] |= (1 << ((data_lba + i) % 8));
 	}
 
 	uint32 label_addr = sizeof(sfs_file_table_t);
 
-	sfs_file_label_t* label = sfs_superblock_buf + label_addr;
+	sfs_label_t* label =  (sfs_label_t*)(sfs_superblock_buf + label_addr);
 
 	for (uint32 i = 0; i < table->labels_cnt; i++) {
-		label = sfs_superblock_buf + label_addr;
+		label = (sfs_label_t*)(sfs_superblock_buf + label_addr);
 
-		label_addr += sizeof(sfs_file_label_t) + label->name_size;
+		label_addr += sizeof(sfs_label_t) + label->name_size;
 	}
 
-	label = sfs_superblock_buf + label_addr;
+	label = (sfs_label_t*)(sfs_superblock_buf + label_addr);
 
-	memset(label, 0, sizeof(sfs_file_label_t) + align_up(filename_len, 4));
+	memset(label, 0, sizeof(sfs_label_t) + align_up(filename_len, 4));
 
 	label->name_size = align_up(filename_len, 4);
 
-	label->data_start = data_start;
+	label->data_lba = data_lba;
 
-	memcpy((byte*)label + sizeof(sfs_file_label_t), filename, filename_len);
+	memcpy((byte*)label + sizeof(sfs_label_t), filename, filename_len);
 
 	int32 offset = 0;
 
 	offset = 0;
 
-	sfs_write_file_sector(drive, table, content, data_start, size);
+	sfs_write_file_sector(drive, table, content, data_lba, size);
 
 	table->labels_cnt += 1;
 
@@ -360,7 +360,7 @@ sfs_error_e sfs_read_file(byte drive, const byte* filename, byte* content, uint3
 
 	byte* after_tabel = sfs_superblock_buf + sizeof(sfs_file_table_t);
 
-	sfs_file_label_t* label = nullptr;
+	sfs_label_t* label = nullptr;
 
 	size_t offset = 0;
 
@@ -375,7 +375,7 @@ sfs_error_e sfs_read_file(byte drive, const byte* filename, byte* content, uint3
 
 	bool is_not_end = true;
 
-	size_t sector = label->data_start;
+	size_t sector = label->data_lba;
 
 	size_t readed_size = 0;
 
@@ -446,7 +446,7 @@ sfs_error_e sfs_rename_file(byte drive, const byte* src_file_name, const byte* d
 
 	byte* after_tabel = sfs_superblock_buf + sizeof(sfs_file_table_t);
 
-	sfs_file_label_t* label = nullptr;
+	sfs_label_t* label = nullptr;
 
 	error = sfs_find_file(drive, src_file_name, &label, &ok);
 
@@ -455,8 +455,10 @@ sfs_error_e sfs_rename_file(byte drive, const byte* src_file_name, const byte* d
 
 	if (!ok) return SFS_ERROR_FILE_NOT_EXISTS;
 
+	// TODO: ╨ò╤ü╨╗╨╕ ╤å╨╡╨╗╨╡╨▓╨╛╨╡ ╨╕╨╝╤Å ╤ä╨░╨╣╨╗╨░ ╨▒╨╛╨╗╤î╤ê╨╡ ╤ç╨╡╨╝ ╨╕╤ü╤à╨╛╨┤╨╜╨╛╨╡ ╨┐╨╡╤Ç╨╡╤ü╨╛╨╖╨┤╨░╨▓╨░╤é╤î ╨╝╨╡╤é╨║╤â ╤ä╨░╨╣╨╗╨░
+
 	if (dest_file_name_len <= label->name_size) {
-		byte* name = (byte*)label + sizeof(sfs_file_label_t);
+		byte* name = (byte*)label + sizeof(sfs_label_t);
 
 		memset(name, 0, label->name_size);
 
@@ -506,7 +508,7 @@ sfs_error_e sfs_copy_file(byte drive, const byte* src_file_name, const byte* des
 
 	sfs_file_table_t* table = (sfs_file_table_t*)sfs_superblock_buf;
 
-	
+	return SFS_OK;
 }
 
 sfs_error_e sfs_list_files(byte drive, uint32* files_cnt, byte* buf, uint32 max_file_name_len) {
@@ -520,14 +522,14 @@ sfs_error_e sfs_list_files(byte drive, uint32* files_cnt, byte* buf, uint32 max_
 
 	sfs_file_table_t* table = (sfs_file_table_t*)sfs_superblock_buf;
 
-	byte* after_tabel = sfs_superblock_buf + sizeof(sfs_file_table_t);
+	byte* after_table = sfs_superblock_buf + sizeof(sfs_file_table_t);
 
 	uint32 offset = 0;
 
 	uint32 index = 0;
 
 	for (uint32 i = 0; i < table->labels_cnt; i++) {
-		sfs_file_label_t* label = after_tabel + offset;
+		sfs_label_t* label = (sfs_label_t*)(after_table + offset);
 
 		if (label->name_size <= 0) continue;
 
@@ -535,13 +537,13 @@ sfs_error_e sfs_list_files(byte drive, uint32* files_cnt, byte* buf, uint32 max_
 
 		bool is_not_end = true;
 
-		byte* name = (byte*)label + sizeof(sfs_file_label_t);
+		byte* name = (byte*)label + sizeof(sfs_label_t);
 
-		kprintf("label->name_size = %zu\n", label->name_size);
+		// kprintf("label->name_size = %zu\n", label->name_size);
 			
 		memcpy(buf + (index * max_file_name_len) + name_offset, name, label->name_size);
 
-		offset += sizeof(sfs_file_label_t) + label->name_size;
+		offset += sizeof(sfs_label_t) + label->name_size;
 
 		index++;
 	}

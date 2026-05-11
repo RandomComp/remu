@@ -154,7 +154,7 @@ byte* ata_err_description(byte status) {
 	if ((status & ATA_SR_ERR) != 0) {
 		byte errcode = in8(ATA_ERROR_REG);
 
-		c_str error_msg = "Unknown error.";
+		byte* error_msg = "Unknown error.";
 
 		for (size_t i = 0; i < sizeof(errors); i++) {
 			if ((errcode & errors[i]) != 0) {

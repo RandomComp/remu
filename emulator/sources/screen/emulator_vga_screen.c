@@ -32,7 +32,7 @@
 
 #define CLAMP(x, min_value, max_value) (MAX(MIN(x, max_value), min_value))
 
-extern const c_str cp437[];
+extern const byte* cp437[];
 
 static vga_text_screen_t* cur = nullptr;
 
@@ -96,8 +96,8 @@ static byte* load_png_font(const char* file_name, size_t* w, size_t* h) {
 
 	uint32* pixels = temp2->pixels;
 
-	for (size_t i = 0; i < width * height; i++) {
-		size_t index = i / 8; size_t bit_index = i % 8;
+	for (int i = 0; i < width * height; i++) {
+		int index = i / 8; int bit_index = i % 8;
 
 		uint32 pixel = pixels[i];
 
@@ -121,6 +121,24 @@ static byte* load_png_font(const char* file_name, size_t* w, size_t* h) {
 	return font;
 }
 #endif
+
+static intmax_t align_down(intmax_t x, intmax_t align) {
+	if (align == 0)
+		return x;
+
+	if (x % align == 0) return x;
+
+	return (x / align) * align;
+}
+
+static intmax_t align_up(intmax_t x, intmax_t align) {
+	if (align == 0)
+		return x;
+
+	if (x % align == 0) return x;
+
+	return ((x / align) + 1) * align;
+}
 
 #ifdef EMULATOR_SDL_USING
 vga_text_screen_t* init_vga_text_screen(vga_text_device_t* vga_device, SDL_Texture* screen_texture, uint32* sdl_screen, _size_t screen_width, _size_t screen_height, bool gui)
@@ -162,12 +180,14 @@ vga_text_screen_t* init_vga_text_screen(vga_text_device_t* vga_device)
 
 	#endif
 
-	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up VGA screen update timer (33 hz) and text blinking timer (2 hz)...");
+	emulator_log(false, LOG_SEVERITY_VERBOSE, "Setting up VGA screen update timer (33 hz) and text blinking timer...");
 
 	cur = screen;
 
-	emulator_setup_tick_timer(nullptr, update_cur_vga_screen, 33);
-	emulator_setup_tick_timer(nullptr, text_blink_update, 500);
+	#define VGA_FPS 30
+
+	emulator_setup_tick_timer(nullptr, update_cur_vga_screen, 1000 / VGA_FPS);
+	emulator_setup_tick_timer(nullptr, text_blink_update, 32 * (1000 / VGA_FPS));
 
 	emulator_log(true, LOG_SEVERITY_VERBOSE, "VGA screen initialized");
 
@@ -179,6 +199,8 @@ vga_text_screen_t* init_vga_text_screen(vga_text_device_t* vga_device)
 	#else
 	printf(ansi_clear_screen);
 	#endif
+
+	return screen;
 }
 
 #ifdef EMULATOR_SDL_USING
@@ -308,7 +330,7 @@ void handle_copy_selected() {
 		bool is_last_j = j == rows_end;
 
 		for (size_t i = (is_first_j ? columns_start : 0); i < (is_last_j ? columns_end : index); i++) {
-			c_str cp437_c = cp437[cur->vga_device->vidmem[(j * cur->vga_device->width) + i] & 0xFF];
+			byte* cp437_c = cp437[cur->vga_device->vidmem[(j * cur->vga_device->width) + i] & 0xFF];
 
 			size_t cp437_c_len = strlen(cp437_c);
 
@@ -363,25 +385,25 @@ const uint32 inversed_vga_color_to_rgb[] = {
 	[COLOR_BRIGHT_WHITE] = 		0x000000
 };
 
-static int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
-	if (!vga || !vga->vga_device || !vga->vga_device->vidmem) {
+static int draw_vga_text_screen_gui(vga_text_screen_t* screen) {
+	if (!screen || !screen->vga_device || !screen->vga_device->vidmem) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw uninitialized vga text screen device!");
 
 		return 1;
 	}
 
-	if (!vga->gui) {
+	if (!screen->gui) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw character using non-gui vga text screen device!");
 
 		return 1;
 	}
 
-	for (size_t i = 0; i < vga->vga_device->width * vga->vga_device->height; i++) {
-		if ((vga->vga_device->mode_reg & 0x20) == 0) {
-			draw_vga_ch(vga, ' ', false, 0, 0, i, 0);
+	for (_size_t i = 0; i < screen->vga_device->width * screen->vga_device->height; i++) {
+		if ((screen->vga_device->mode_reg & 0x20) == 0) {
+			draw_vga_ch(screen, ' ', false, 0, 0, i, 0);
 		}
 
-		uint16 ch_and_style = vga->vga_device->vidmem[i];
+		uint16 ch_and_style = screen->vga_device->vidmem[i];
 
 		byte ch = ch_and_style & 0xFF;
 
@@ -393,11 +415,11 @@ static int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
 
 		bool bg_bright = bg_style & 0x8;
 			
-		if ((vga->vga_device->mode_reg & 0x08) != 0) {
+		if ((screen->vga_device->mode_reg & 0x08) != 0) {
 			bg_style = bg_style % 8;
 
 			if (bg_bright && !blinking_text_visible) {
-				draw_vga_ch(vga, ' ', false, 0, 0, i, 0);
+				draw_vga_ch(screen, ' ', false, 0, 0, i, 0);
 				
 				continue;
 			}
@@ -416,13 +438,29 @@ static int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
 
 		bool transparent = false;
 
-		if (i == vga->vga_device->cursor_pos && blinking_text_visible) {
-			draw_vga_ch(vga, '_', false, 0, 0xFFFFFF, i, 0);
+		bool cursor_disabled = screen->vga_device->crt_reg_a & 0x20;
+
+		if (i == screen->vga_device->cursor_pos && blinking_text_visible && !cursor_disabled) {
+			_ssize_t column = screen->vga_device->cursor_pos % (_ssize_t)screen->vga_device->width;
+
+			_ssize_t row = screen->vga_device->cursor_pos / (_ssize_t)screen->vga_device->width;
+
+			size_t cursor_start 	= screen->vga_device->crt_reg_a & 0x1F;
+			size_t cursor_end 		= screen->vga_device->crt_reg_b & 0x1F;
+				
+			for (size_t j = cursor_start; j <= cursor_end; j++) {
+				size_t screen_x = column * VGA_CHAR_WIDTH;
+				size_t screen_y = row * VGA_CHAR_HEIGHT;
+				
+				size_t screen_index = screen_x + ((screen_y + j) * screen->emulator_screen_width);
+
+				memset(screen->emulator_screen + screen_index, 0xFF, VGA_CHAR_WIDTH * sizeof(screen->emulator_screen[0]));
+			}
 
 			transparent = true;
 		}
 			
-		draw_vga_ch(vga, ch, transparent, bg_rgb_color, fg_rgb_color, i, 0);
+		draw_vga_ch(screen, ch, transparent, bg_rgb_color, fg_rgb_color, i, 0);
 	}
 
 	return 0;
@@ -432,33 +470,59 @@ static int draw_vga_text_screen_gui(vga_text_screen_t* vga) {
 static void draw_vga_text_screen_cli(vga_text_screen_t* screen) {
 	if (!screen || !screen->vga_device->vidmem) return;
 
-	_ssize_t columns, rows;
+	_ssize_t columns = 0, rows = 0;
 
 	get_terminal_size(&columns, &rows);
 
-	_size_t width = screen->vga_device->width < columns ? screen->vga_device->width : columns;
+	_ssize_t width = (_ssize_t)screen->vga_device->width < columns ? screen->vga_device->width : columns;
 
-	_size_t height = screen->vga_device->height < rows ? screen->vga_device->height : rows;
+	_ssize_t height = (_ssize_t)screen->vga_device->height < rows ? screen->vga_device->height : rows;
 
 	set_cursor_pos(0, 0);
 
 	printf(default_screen_color bold white_fg);
 
-	for (size_t i = 0; i < height; i++) {
+	for (_ssize_t i = 0; i < height; i++) {
 		bool is_last_i = i == (height - 1);
 
-		for (size_t j = 0; j < width; j++) {
+		for (_ssize_t j = 0; j < width; j++) {
 			if ((screen->vga_device->mode_reg & 0x20) == 0) {
 				putchar(' ');
 
 				continue;
 			}
 
-			_size_t ch_pos = j + (i * width);
+			_ssize_t ch_pos = j + (i * width);
 
-			if (ch_pos == screen->vga_device->cursor_pos &&
-				blinking_text_visible) {
-				printf(underline);
+			bool cursor_disabled = screen->vga_device->crt_reg_a & 0x20;
+
+			if (ch_pos == screen->vga_device->cursor_pos && blinking_text_visible && !cursor_disabled) {
+				size_t cursor_start 	= screen->vga_device->crt_reg_a & 0x1F;
+				size_t cursor_end 		= screen->vga_device->crt_reg_b & 0x1F;
+					
+				if (cursor_start < 6) {
+					printf(overline);
+				}
+				
+				if (cursor_start >= 6 && cursor_start <= 9) {
+					printf(strikethrough);
+				}
+
+				if (cursor_start > 10) {
+					printf(underline);
+				}
+					
+				if (cursor_end < 6) {
+					printf(overline);
+				}
+				
+				if (cursor_end >= 6 && cursor_end <= 9) {
+					printf(strikethrough);
+				}
+
+				if (cursor_end > 10) {
+					printf(underline);
+				}
 			}
 
 			uint16 ch_and_style = screen->vga_device->vidmem[ch_pos];

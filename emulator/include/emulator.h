@@ -33,7 +33,7 @@
 
 #include <pthread.h>
 
-typedef void (*tick_timer_handler_t)();
+typedef void (*tick_timer_handler_t)(void);
 
 typedef void (*kmain_t)(uint32 magic, multiboot_info_t* multiboot);
 
@@ -56,7 +56,7 @@ typedef struct tick_timer_t {
 
 #define TICK_TIMERS_SIZE_STEP (4)
 
-#define EMULATOR_VERSION_STR "0.3.2"
+#define EMULATOR_VERSION_STR "0.3.5"
 
 #define EMULATOR_VERSION_FULL_STR EMULATOR_VERSION_STR " (" __DATE__ ", " __TIME__ ") for " PLATFORM_NAME " using " PLATFORM_COMPILER_NAME " %i.%i " PLATFORM_ARCH
 
@@ -85,11 +85,11 @@ typedef struct __init_kernel_args_t {
 
 	void (*__emulator_idt_flush)(idt_ptr_t* ptr);
 
-	void (*__emulator_kernel_report)(const c_str msg);
+	void (*__emulator_kernel_report)(const byte* msg);
 } __init_kernel_args_t;
 
 typedef struct kernel_t {
-	void (*__emulator_init_kernel)(__init_kernel_args_t kernel_args);
+	void (*__emulator_init_kernel)(__init_kernel_args_t* kernel_args);
 
 	multiboot_section_t* (*__emulator_read_multiboot_secton)(void);
 

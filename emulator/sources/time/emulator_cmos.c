@@ -154,6 +154,10 @@ static _size_t cmos_read() {
 		result = struct_time.day_of_month;
 	}
 
+	else if (attrib_reg == CMOS_RTC_MONTHS) {
+		result = struct_time.month;
+	}
+
 	else if (attrib_reg == CMOS_RTC_YEARS) {
 		result = struct_time.year % 100;
 	}
@@ -183,8 +187,6 @@ static void update_cmos() {
 	cur->unix_time++;
 
 	cur->reg_a &= ~0x80;
-
-	emulator_log(true, LOG_SEVERITY_INFO, "new second");
 }
 
 cmos_t* init_cmos() {

@@ -32,7 +32,7 @@
 
 #define CLAMP(x, min_value, max_value) (MAX(MIN(x, max_value), min_value))
 
-const c_str cp437[] = {
+const byte* cp437[] = {
 	" ", "Γÿ║", "Γÿ╗", "ΓÖÑ", "ΓÖª", "ΓÖú", 
 	"ΓÖá", "ΓÇó", "Γùÿ", "Γùï", "ΓùÖ", "ΓÖé", 
 	"ΓÖÇ", "ΓÖ¬", "ΓÖ½", "Γÿ╝", "Γû║", "Γùä", 
@@ -120,8 +120,6 @@ static void attrib_reg_write(_size_t data) {
 			cur->mode_reg &= ~0x20;
 
 		display_vidmem = 0;
-		
-		attrib_reg = 0;
 
 		emulator_log(false, LOG_SEVERITY_TRACE, "Writed %llx as data to 0x3C0 (VGA text screen)\r", data);
 	}
@@ -156,12 +154,22 @@ static void crt_select_reg(_size_t data) {
 static void crt_write_reg(_size_t data) {
 	if (!cur) return;
 
-	if (crt_reg == 0xE) {
-		cur->cursor_pos = (cur->cursor_pos & 0xFFFF00FF) | ((data & 0xFF) << 8);
+	data = data & 0xFF;
+
+	if (crt_reg == 0xA) {
+		cur->crt_reg_a = data;
+	}
+
+	if (crt_reg == 0xB) {
+		cur->crt_reg_b = data;
+	}
+	
+	else if (crt_reg == 0xE) {
+		cur->cursor_pos = (cur->cursor_pos & 0xFFFF00FF) | (data << 8);
 	}
 	
 	else if (crt_reg == 0xF) {
-		cur->cursor_pos = (cur->cursor_pos & 0xFFFFFF00) | (data & 0xFF);
+		cur->cursor_pos = (cur->cursor_pos & 0xFFFFFF00) | data;
 	}
 }
 
@@ -220,7 +228,7 @@ vga_text_device_t* init_vga_text_device(ram_t* ram, _ssize_t columns, _ssize_t r
 
 	vga->vidmem_ram_addr = vidmem_ram_addr;
 
-	vga->vidmem = (uint16*)(ram->mem_ptr + vga->vidmem_ram_addr);
+	vga->vidmem = (uint16*)(void*)(ram->mem_ptr + vga->vidmem_ram_addr);
 
 	vga->width = columns; vga->height = rows; vga->bpp = 2 * 8;
 
@@ -228,7 +236,8 @@ vga_text_device_t* init_vga_text_device(ram_t* ram, _ssize_t columns, _ssize_t r
 
 	vga->mode_reg = 0b00001000 | 0x20;
 
-	vga->crt_reg_a = 0b00000000;
+	vga->crt_reg_a 	= 0b00000000;
+	vga->crt_reg_b 	= 0b00000000;
 	
 	emulator_log(false, LOG_SEVERITY_VERBOSE, "VGA text screen mode register (no video mode): 0b%08b\r", vga->mode_reg);
 	
@@ -280,7 +289,7 @@ void clear_vga_text_screen(vga_text_device_t* screen) {
 	}
 }
 
-int draw_vga_text(vga_text_device_t* vga, const c_str text, byte style, _size_t column, _size_t row) {
+int draw_vga_text(vga_text_device_t* vga, const byte* text, byte style, _size_t column, _size_t row) {
 	if (!vga || !vga->vidmem) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Tried to draw text using uninitialized vga text screen device!");
 

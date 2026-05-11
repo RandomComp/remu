@@ -95,7 +95,7 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 
 	va_copy(args2, args);
 
-	const c_str severities_name[] = {
+	const byte* severities_name[] = {
 		[LOG_SEVERITY_TRACE] 	=	"TRCE",
 		[LOG_SEVERITY_VERBOSE] 	=	"VERB",
 		[LOG_SEVERITY_INFO] 	=	"INFO",
@@ -104,7 +104,7 @@ void emulator_log(bool mirror_stdout, log_severity_e severity, const char* forma
 		[LOG_SEVERITY_REPORT] 	= 	"KERNEL"
 	};
 
-	const c_str severities_color[] = {
+	const byte* severities_color[] = {
 		[LOG_SEVERITY_TRACE] 	=	white_fg,
 		[LOG_SEVERITY_VERBOSE] 	=	white_fg,
 		[LOG_SEVERITY_INFO] 	= 	bold white_fg,

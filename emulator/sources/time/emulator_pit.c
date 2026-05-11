@@ -14,7 +14,7 @@
 
 static pit_t* cur = nullptr;
 
-static void gen_tick(int UNUSED _) {
+static void gen_tick(void) {
 	if (cur && cur->pic)
 		call_emulator_int(cur->pic, PIT_INT);
 }

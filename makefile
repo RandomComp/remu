@@ -1,12 +1,14 @@
 CC := clang
 
-CFLAGS := -Wall
+CFLAGS := -Wall -Wpadded -Wpacked -Werror=return-type -Wno-unused-parameter -Werror=uninitialized  -Werror=implicit-function-declaration -Werror=address -Werror=type-limits -Werror=shadow -Werror=pointer-arith -Werror=cast-align -Werror=float-conversion -Werror=undef
+
+# -Werror=sign-compare
 
 EMULATOR_CFLAGS := $(CFLAGS)
 
 #  -fsanitize=address -g
 
-OS_CFLAGS := -fPIC $(CFLAGS) -ffreestanding -nostdlib -nostdinc -fno-inline -fvisibility=hidden -fno-plt -fno-builtin -fno-builtin-functions -fno-common -fno-asynchronous-unwind-tables -fno-stack-protector -Wno-pointer-sign -D__EMULATOR__
+OS_CFLAGS := -fPIC $(CFLAGS) -ffreestanding -nostdlib -nostdinc -fno-inline -fno-stack-check -mno-stack-arg-probe -fvisibility=hidden -fno-plt -fno-builtin -fno-builtin-functions -fno-common -fno-asynchronous-unwind-tables -fno-stack-protector -Wno-pointer-sign -D__EMULATOR__
 
 BAREMETAL_CFLAGS := $(CFLAGS) -m32 -ffreestanding
 
@@ -56,12 +58,14 @@ image:
 
 	@cp kernel.bin img/boot/
 
-	@xorrisofs -partition_offset 16 \
-    -o hdd.img \
-    -graft-points \
-    -b boot/grub/i386-pc/eltorito.img \
-    -no-emul-boot -boot-load-size 4 -boot-info-table \
-    img/
+	@grub-mkrescue -o hdd.img img/
+
+# 	@xorrisofs -partition_offset 16 \
+#     -o hdd.img \
+#     -graft-points \
+#     -b boot/grub/i386-pc/eltorito.img \
+#     -no-emul-boot -boot-load-size 4 -boot-info-table \
+#     img/
 	
 	@echo "Done!"
 
@@ -72,12 +76,14 @@ emulator_run:
 	@./emulator.out ./os.so
 
 emulator: $(EMULATOR_OBJFILES)
-	@$(CC) $^ -o $@.out -lSDL2 -lSDL2_image -pthread
+	@$(CC) $^ -o $@.out -lSDL2 -lSDL2_image -pthread -lm
+
+#	@$(CC) $^ -o $@.out -pthread
 
 os_all: clean_os os clean emulator_run
 
 os: $(EMULATOR_OS_OBJFILES)
-	@$(CC) -ffreestanding -nostdlib -shared -Wl,--gc-sections -Wl,-z,norelro $^ -o $@.so
+	@$(CC) -ffreestanding -nostdlib -shared -Wl,--gc-sections -Wl $^ -o $@.so
 
 obj/os_objs/%.o: %.c
 	@mkdir -p $(dir $@)

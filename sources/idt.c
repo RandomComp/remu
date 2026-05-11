@@ -190,7 +190,7 @@ void isr177(void) {
 	call_isr_handler(177);
 }
 
-// TODO: передавать в handler реальный struct registers_t* а не пустое значение
+// TODO: ╨┐╨╡╤Ç╨╡╨┤╨░╨▓╨░╤é╤î ╨▓ handler ╤Ç╨╡╨░╨╗╤î╨╜╤ï╨╣ struct registers_t* ╨░ ╨╜╨╡ ╨┐╤â╤ü╤é╨╛╨╡ ╨╖╨╜╨░╤ç╨╡╨╜╨╕╨╡
 void irq0(void) {
 	isr_handler_t handler = (isr_handler_t)IDTIRQRoutines[0];
 	if (handler) handler(nullptr);

@@ -28,8 +28,10 @@ static ssize_t command_index = 0;
 emush_cmd emush_commands[] = {
 	{"help", 		help_cmd},
 	{"set", 		set_cmd},
+	{"del", 		del_cmd},
 	{"clear", 		clear_cmd},
 	{"echo", 		echo_cmd},
+	{"exec", 		exec_cmd},
 	{"logo", 		logo_cmd},
 	{"readme", 		readme_cmd},
 	{"history", 	history_cmd},
@@ -55,8 +57,22 @@ static byte vars_value[16][64] = { "0", "emush:$ " };
 
 static const size_t vars_max_cnt = MIN(sizeof(vars_name) / sizeof(vars_name[0]), sizeof(vars_value) / sizeof(vars_value[0]));
 
+int exec_cmd(const byte **argv, size_t argc) {
+	kprintf("Running \"%s\" script...\n", argv[1]);
+
+	for (size_t i = 2; i < argc; i++) {
+		byte buf[4] = { 0 };
+
+		snprint_num(buf, 4, i - 2, 10, false, false);
+
+		set_var(buf, argv[i]);
+	}
+
+	return 0;
+}
+
 int ls_cmd(const byte** argv, size_t argc) {
-	size_t files_cnt = 0;
+	uint32 files_cnt = 0;
 
 	byte files[50 * 64] = { 0 };
 
@@ -70,13 +86,43 @@ int ls_cmd(const byte** argv, size_t argc) {
 		return err;
 	}
 
+	files_cnt = MIN(15, files_cnt);
+
+	size_t columns = get_columns();
+
+	size_t file_names_width = 0; size_t cnt = 0;
+
 	for (size_t i = 0; i < files_cnt; i++) {
-		size_t file_size = 0;
+		file_names_width += strlen(files + (i * 64)) + 2 + 1;
 
-		sfs_read_file(ATA_MASTER, files + (i * 64), nullptr, 0, -1, &file_size);
-
-		kprintf("\"%s\" ~%zu.%zu KiB\n", files + (i * 64), file_size / 1024, (file_size / 102) % 10);
+		cnt++;
 	}
+
+	size_t avg_width = cnt > 0 ? align_down(file_names_width, cnt) / cnt : file_names_width;
+
+	size_t x = 0, last_x = 0;
+
+	size_t file_name_width = columns - avg_width * 3;
+
+	for (size_t i = 0; i < files_cnt; i++) {
+		size_t filename_len = strlen(files + (i * 64));
+
+		size_t temp_x = x + filename_len + 2;
+
+		if (temp_x < file_name_width) {
+			kprintf("\'%s\'%*s", files + (i * 64), avg_width - filename_len, "");
+
+			x += filename_len + 2;
+		}
+		
+		else {
+			kprintf("\'%s\'\n", files + (i * 64));
+
+			x = 0;
+		}
+	}
+
+	kprint("\n\r");
 
 	return 0;
 }
@@ -152,13 +198,13 @@ void graphtest() {
 
 	byte src_style = get_style();
 
-	disable_blink();
+	vga_disable_blink();
 	
 	for (size_t i = 0; i < rows; i++) {
 		for (size_t j = 0; j < columns; j++) {
 			set_style(0x00);
 
-			set_cursor_pos(j, i);
+			set_cursor_pos(j, i, false);
 
 			float x = j; float y = i;
 
@@ -177,7 +223,7 @@ void graphtest() {
 
 	set_style(src_style);
 
-	const c_str msg = "Press 'q' to quit"; size_t msg_len = strlen(msg);
+	const byte* msg = "Press 'q' to quit"; size_t msg_len = strlen(msg);
 
 	size_t spaces = (columns / 2) - (msg_len / 2);
 
@@ -219,13 +265,7 @@ int echo_cmd(const byte **argv, size_t argc) {
 	return 0;
 }
 
-int set_cmd(const byte** argv, size_t argc) {
-	if (argc >= 3) {
-		for (size_t i = 1; i < align_down(argc - 1, 2); i += 2) {
-			set_var(argv[i], argv[i + 1]);
-		}
-	}
-
+void show_vars(void) {
 	size_t max_var_name_len = 0;
 
 	size_t max_var_value_len = 0;
@@ -235,8 +275,9 @@ int set_cmd(const byte** argv, size_t argc) {
 		
 		byte* value = vars_value[i];
 
-			if ((!name || name[0] == 0) ||
-			(!value || value[0] == 0)) break;
+		if (!name || !value) break;
+
+		if (name[0] == 0 && value[0] == 0) continue;
 
 		size_t name_len = strlen(name);
 
@@ -251,9 +292,15 @@ int set_cmd(const byte** argv, size_t argc) {
 		}
 	}
 
+	#define EMUSH_VARS_STR "emush variables"
+
+	max_var_name_len = MAX(max_var_name_len, strlen(EMUSH_VARS_STR) / 2);
+
+	max_var_value_len = MAX(max_var_value_len, strlen(EMUSH_VARS_STR) / 2);
+
 	kprintf("┌%0m─*s┐\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "");
 
-	kprintf("│%vfbq%=*s%vd│\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, "emush variables");
+	kprintf("│%vfbq%=*s%vd│\n", max_var_name_len + 2 + 1 + max_var_value_len + 2, EMUSH_VARS_STR);
 
 	kprintf("├%0m─*s┬%0m─*s┤\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
 
@@ -261,20 +308,57 @@ int set_cmd(const byte** argv, size_t argc) {
 		byte* name = vars_name[i];
 		byte* value = vars_value[i];
 
-		if ((!name || name[0] == 0) ||
-			(!value || value[0] == 0)) break;
+		if (!name || !value) break;
+
+		if (name[0] == 0 && value[0] == 0) continue;
 
 		kprintf("│ %vfby%-*s%vd │ %vfbg%-*s%vd │\n", max_var_name_len, name, max_var_value_len, value);
 	}
 
 	kprintf("└%0m─*s┴%0m─*s┘\n", max_var_name_len + 2, "", max_var_value_len + 2, "");
+}
+
+int set_cmd(const byte** argv, size_t argc) {
+	emush_var_err_e err = 0;
+
+	if (argc >= 3) {
+		for (intmax_t i = 1; i < align_down(argc - 1, 2); i += 2) {
+			err = set_var(argv[i], argv[i + 1]);
+
+			if (err != EMUSH_VAR_OK) {
+				kprintf("%s: error: %s\n", argv[0], emush_get_var_err_description(err));
+
+				break;
+			}
+		}
+	}
+
+	show_vars();
 		
-	return 0;
+	return err;
+}
+
+int del_cmd(const byte** argv, size_t argc) {
+	emush_var_err_e err = 0;
+
+	for (size_t i = 1; i < argc; i++) {
+		err = del_var(argv[i]);
+
+		if (err != EMUSH_VAR_OK) {
+			kprintf("%s: error: %s\n", argv[0], emush_get_var_err_description(err));
+
+			break;
+		}
+	}
+
+	show_vars();
+
+	return err;
 }
 
 int history_cmd(const byte **argv, size_t argc) {
 	for (int i = 0; i < 16; i++) {
-		c_str msg = history[i];
+		byte* msg = history[i];
 
 		if (strlen(msg) > 0) {
 			kprintf("\t%i. %s\n", i, msg);
@@ -342,7 +426,7 @@ int pci_cmd(const byte** argv, size_t argc) {
 	return 0;
 }
 
-int set_var(const byte* var_name, const byte* value) {
+emush_var_err_e set_var(const byte* var_name, const byte* value) {
 	bool ok = false; size_t index = 0;
 
 	for (size_t i = 0; i < vars_max_cnt; i++) {
@@ -369,7 +453,7 @@ int set_var(const byte* var_name, const byte* value) {
 			}
 		}
 
-		if (!ok) return -1;
+		if (!ok) return EMUSH_VAR_NOT_AVAILABLE_SPACE_ERR;
 
 		memset(vars_name[index], 0, 64);
 
@@ -380,23 +464,65 @@ int set_var(const byte* var_name, const byte* value) {
 
 	memcpy(vars_value[index], value, MIN(64, strlen(value)));
 
-	return 0;
+	return EMUSH_VAR_OK;
 }
 
-byte* get_var(const byte* var_name) {
+emush_var_err_e get_var(const byte* var_name, byte** value) {
 	for (size_t i = 0; i < vars_max_cnt; i++) {
 		byte* cur_var_name = vars_name[i];
 
 		if (!cur_var_name) break;
 
-		if (cur_var_name[0] == 0) break;
+		if (cur_var_name[0] == 0) continue;
 
 		if (strcmp(var_name, cur_var_name) == 0) {
-			return vars_value[i];
+			if (value) *value = vars_value[i];
+
+			return EMUSH_VAR_OK;
 		}
 	}
 
-	return "";
+	if (value) *value = "";
+
+	return EMUSH_VAR_NOT_FOUND_ERR;
+}
+
+emush_var_err_e del_var(const byte* var_name) {
+	for (size_t i = 0; i < vars_max_cnt; i++) {
+		byte* cur_var_name = vars_name[i];
+
+		if (!cur_var_name) break;
+
+		if (cur_var_name[0] == 0) continue;
+
+		if (strcmp(var_name, cur_var_name) == 0) {
+			memset(vars_name[i], 0, sizeof(vars_name[0]));
+			
+			memset(vars_value[i], 0, sizeof(vars_value[0]));
+
+			return EMUSH_VAR_OK;
+		}
+	}
+
+	return EMUSH_VAR_NOT_FOUND_ERR;
+}
+
+byte* emush_get_var_err_description(emush_var_err_e err) {
+	switch (err) {
+		case EMUSH_VAR_OK:
+			return "OK";
+			
+		case EMUSH_VAR_NOT_AVAILABLE_SPACE_ERR:
+			return "not available space";
+
+		case EMUSH_VAR_NOT_FOUND_ERR:
+			return "variable not found";
+		
+		default:
+			break;
+	}
+
+	return "unknown";
 }
 
 static byte last_err = 0;
@@ -420,17 +546,17 @@ int emush_exec(const byte* command, size_t command_len) {
 
 	memcpy(src_typed, command, MIN(sizeof(src_typed), command_len));
 
-	byte* argv[16] = { "" };
+	const byte* argv[16] = { "" };
 
 	size_t argc = 0;
 
-	c_str arg = parse_cli_args(command);
+	byte* arg = parse_cli_args(command);
 
 	while (arg != nullptr && argc < 16) {
 		if (arg[0] == '$') {
 			byte* var_name = arg + 1;
 
-			arg = get_var(var_name);
+			get_var(var_name, &arg);
 		}
 
 		argv[argc++] = arg;
@@ -460,16 +586,22 @@ int emush_exec(const byte* command, size_t command_len) {
 	}
 
 	if (!ok && strlen(argv[0]) != 0) {
-		kprintf("\"%s\": %vfbrno such command\n", argv[0]);
+		kprintf("%s: %vfbrno such command\n", argv[0]);
 
 		last_err = 127;
 	}
 
 	if (strlen(src_typed) > 0 && 
 		strncmp(history[MAX(0, command_index - 1)], src_typed, 64) != 0) {
+		if (command_index >= 15) {
+			for (size_t i = 0; i < 15; i++) {
+				memcpy(history[i], history[i + 1], 64);
+			}
+		}
+
 		memcpy(history[command_index], src_typed, 64);
 
-		command_index = (command_index + 1) % 16;
+		command_index = MIN(command_index + 1, 15);
 	}
 
 	return 0;

@@ -12,16 +12,16 @@
 
 #include <stdlib.h>
 
-static bool idt_initialized = true; // По умолчанию IDT настроен на все исключения перезагружать систему
+static bool idt_initialized = true; // ╨ƒ╨╛ ╤â╨╝╨╛╨╗╤ç╨░╨╜╨╕╤Ä IDT ╨╜╨░╤ü╤é╤Ç╨╛╨╡╨╜ ╨╜╨░ ╨▓╤ü╨╡ ╨╕╤ü╨║╨╗╤Ä╤ç╨╡╨╜╨╕╤Å ╨┐╨╡╤Ç╨╡╨╖╨░╨│╤Ç╤â╨╢╨░╤é╤î ╤ü╨╕╤ü╤é╨╡╨╝╤â
 
 static bool master_pic_initializing = false,
 			slave_pic_initializing = false;
 
-// Комманда для Master PIC и Slave PIC для начала инициализации IDT
+// ╨Ü╨╛╨╝╨╝╨░╨╜╨┤╨░ ╨┤╨╗╤Å Master PIC ╨╕ Slave PIC ╨┤╨╗╤Å ╨╜╨░╤ç╨░╨╗╨░ ╨╕╨╜╨╕╤å╨╕╨░╨╗╨╕╨╖╨░╤å╨╕╨╕ IDT
 // out8(0x20, 0x11);
 // out8(0xa0, 0x11);
 
-// Данные для Master PIC и Slave PIC последовательно
+// ╨ö╨░╨╜╨╜╤ï╨╡ ╨┤╨╗╤Å Master PIC ╨╕ Slave PIC ╨┐╨╛╤ü╨╗╨╡╨┤╨╛╨▓╨░╤é╨╡╨╗╤î╨╜╨╛
 // out8(0x21, 0x20);
 // out8(0xa1, 0x28);
 

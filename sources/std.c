@@ -20,12 +20,11 @@ static terminal_out_t stdout = { 0 };
 
 static terminal_in_t stdin = { 0 };
 
-static ssize_t cur_x = 0, cur_y = 0;
-
 static byte cur_style = 0;
 
 void init_std(terminal_out_t _stdout, terminal_in_t _stdin) {
-	cur_x = 0, cur_y = 0;
+	set_cursor_pos(0, 0, false);
+	set_cursor_pos(0, 0, true);
 
 	stdout = _stdout;
 
@@ -84,7 +83,7 @@ size_t getstr(bool show, byte* buf, size_t buf_size) {
 		else if (c == '\x1A') {
 			index = MIN(index + 1, strlen(buf));
 			
-			crt_set_cursor_pos(cur_x + index, cur_y);
+			set_cursor_pos(cur_x + index, cur_y, true);
 			
 			continue;
 		}
@@ -92,19 +91,19 @@ size_t getstr(bool show, byte* buf, size_t buf_size) {
 		else if (c == '\x1B') {
 			index = MAX(0, MIN(index - 1, strlen(buf)));
 			
-			crt_set_cursor_pos(cur_x + index, cur_y);
+			set_cursor_pos(cur_x + index, cur_y, true);
 			
 			continue;
 		}
 
-		else {
+		else if (isascii(c)) {
 			buf[index] = c;
 			
 			index += 1;
 		}
 
-		set_cursor_pos(cur_x, cur_y);
-		crt_set_cursor_pos(cur_x, cur_y);
+		set_cursor_pos(cur_x, cur_y, false);
+		set_cursor_pos(cur_x + index, cur_y, true);
 		clear_line();
 		kprint(buf);
 	}
@@ -116,10 +115,10 @@ size_t getstr(bool show, byte* buf, size_t buf_size) {
 
 #include "drivers/memory/memory.h"
 
-static byte inputed_buf[64] = { 0 };
+// static byte inputed_buf[64] = { 0 };
 
 byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t command_index, size_t history_size) {
-	ssize_t index = 0;
+	ssize_t index = 0, view_index = 0; ssize_t view_size = 0;
 
 	ssize_t cur_x = 0, cur_y = 0;
 		
@@ -132,6 +131,8 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 	size_t inputed_size = 0;
 
 	bool cur_is_inputed = true;
+	
+	set_cursor_pos(cur_x, cur_y, true);
 
 	while (index < 64) {
 		byte c = 0;
@@ -154,21 +155,24 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 			size_t buf_len = strlen(buf);
 
 			if (ok) {
-				if (cur_is_inputed) {
-					inputed_size = buf_len;
+				// if (cur_is_inputed) {
+				// 	inputed_size = buf_len;
 
-					memset(inputed_buf, 0, 64);
+				// 	memset(inputed_buf, 0, 64);
 
-					memcpy(inputed_buf, buf, buf_len);
+				// 	memcpy(inputed_buf, buf, buf_len);
 
-					cur_is_inputed = true;
-				}
+				// 	cur_is_inputed = true;
+				// }
 
 				memcpy(buf, history[command_index], 64);
 					
 				index = strlen(buf);
 
-				cur_is_inputed = false;
+				view_index = index;
+				view_size = index;
+
+				// cur_is_inputed = false;
 			}
 		}
 
@@ -194,50 +198,70 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 			if (!ok || command_index >= history_len) {
 				// kprint("\n\r"); print_hex(inputed, 0, 20);
 
-				buf = inputed_buf;
+				// buf = inputed_buf;
 				
 				index = MIN(64, inputed_size);
+
+				view_index = index;
+				view_size = index;
 
 				command_index = history_size;
 			}
 
 			else {
-				if (cur_is_inputed) {
-					inputed_size = buf_len;
+				// if (cur_is_inputed) {
+				// 	inputed_size = buf_len;
 
-					memset(inputed_buf, 0, 64);
+				// 	memset(inputed_buf, 0, 64);
 
-					memcpy(inputed_buf, buf, buf_len);
+				// 	memcpy(inputed_buf, buf, buf_len);
 
-					cur_is_inputed = true;
-				}
+				// 	cur_is_inputed = true;
+				// }
 
 				buf = history[command_index];
 				
 				index = strlen(buf);
 
-				cur_is_inputed = false;
+				view_index = index;
+
+				// cur_is_inputed = false;
 			}
 		}
 
 		else if (c == '\x1A') {
+			if (buf[index] == '\t') {
+				view_index = view_index + 4;
+			}
+			
+			else view_index = MIN(view_index + 1, view_size);
+			
 			index = MIN(index + 1, strlen(buf));
 			
-			crt_set_cursor_pos(cur_x + index, cur_y);
+			set_cursor_pos(cur_x + view_index, cur_y, true);
 			
 			continue;
 		}
 
 		else if (c == '\x1B') {
-			index = MAX(0, MIN(index - 1, strlen(buf)));
+			if (buf[index] == '\t') {
+				view_index = MAX(0, view_index - 4);
+			}
+
+			else view_index = MAX(0, view_index - 1);
 			
-			crt_set_cursor_pos(cur_x + index, cur_y);
+			index = MAX(0, index - 1);
+
+			set_cursor_pos(cur_x + view_index, cur_y, true);
 			
 			continue;
 		}
 
 		else if (c == '\r') {
 			index = strlen(buf);
+
+			view_index = index;
+			view_size = index;
 
 			break;
 		}
@@ -249,11 +273,37 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 				size_t last_i = strlen(buf) - 1;
 
 				if (index == last_i) {
+					if (view_index >= 1) {
+						if (buf[index] == '\t') {
+							view_index -= 4;
+							view_size -= 4;
+						}
+
+						else {
+							view_index -= 1;
+							view_size -= 1;
+						}
+					}
+
 					buf[index] = ' ';
 				}
 
-				else for (size_t i = index; i < last_i; i++) {
-					buf[i] = buf[i + 1];
+				else {
+					for (size_t i = index; i < last_i; i++) {
+						buf[i] = buf[i + 1];
+					}
+
+					if (view_index >= 1) {
+						if (buf[last_i] == '\t') {
+							view_index -= 4;
+							view_size -= 4;
+						}
+
+						else {
+							view_index -= 1;
+							view_size -= 1;
+						}
+					}
 				}
 
 				buf[last_i] = '\0';
@@ -262,7 +312,7 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 			cur_is_inputed = true;
 		}
 
-		else {
+		else if (isascii(c)) {
 			if (index < strlen(buf)) {
 				byte temp_buf[512] = { 0 };
 
@@ -275,13 +325,23 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 
 			buf[index] = c;
 			
+			if (c == '\t') {
+				view_index += 4;
+				view_size += 4;
+			}
+
+			else {
+				view_index += 1;
+				view_size += 1;
+			}
+
 			index += 1;
 
 			cur_is_inputed = true;
 		}
 
-		set_cursor_pos(cur_x, cur_y);
-		crt_set_cursor_pos(cur_x + index, cur_y);
+		set_cursor_pos(cur_x, cur_y, false);
+		set_cursor_pos(cur_x + view_index, cur_y, true);
 		clear_line();
 		kprint(buf);
 	}
@@ -296,115 +356,6 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 		*_inputed_size = index;
 
 	return buf;
-}
-
-size_t getstr_hist_with_auto_add_on(bool show, byte* buf, size_t buf_size, byte history[][64], ssize_t command_index, size_t history_len) {
-	ssize_t index = 0;
-
-	ssize_t cur_x = 0, cur_y = 0;
-		
-	get_cursor_pos(&cur_x, &cur_y);
-
-	memset(buf, 0, buf_size);
-
-	while (index < buf_size) {
-		byte c = 0;
-
-		while (!c) {
-			c = getch();
-
-			halt();
-		}
-
-		if (c == '\x18') {
-			for (ssize_t i = (command_index) - 1; i >= 0; i--) {
-				if (strlen(history[i]) != 0) {
-					command_index = i; break;
-				}
-			}
-
-			memcpy(buf, history[command_index], buf_size);
-				
-			index = strlen(buf);
-		}
-
-		else if (c == '\x19') {
-			for (ssize_t i = (command_index) + 1; i < history_len; i++) {
-				if (strlen(history[i]) != 0) {
-					command_index = i; break;
-				}
-			}
-
-			memcpy(buf, history[command_index], buf_size);
-			
-			index = strlen(buf);
-		}
-
-		else if (c == '\x1A') {
-			index = MIN(index + 1, strlen(buf));
-			
-			crt_set_cursor_pos(cur_x + index, cur_y);
-			
-			continue;
-		}
-
-		else if (c == '\x1B') {
-			index = MAX(0, MIN(index - 1, strlen(buf)));
-			
-			crt_set_cursor_pos(cur_x + index, cur_y);
-			
-			continue;
-		}
-
-		else if (c == '\r') {
-			index = strlen(buf);
-
-			break;
-		}
-
-		else if (c == '\b') {
-			if (index >= 1) {
-				index -= 1;
-
-				size_t last_i = strlen(buf) - 1;
-
-				if (index == last_i) {
-					buf[index] = ' ';
-				}
-
-				else for (size_t i = index; i < last_i; i++) {
-					buf[i] = buf[i + 1];
-				}
-
-				buf[last_i] = '\0';
-			}
-		}
-
-		else {
-			if (index < strlen(buf)) {
-				byte temp_buf[512] = { 0 };
-
-				memcpy(temp_buf, buf + index, strlen(buf) - index);
-
-				for (size_t i = index; i < strlen(buf); i++) {
-					buf[i + 1] = temp_buf[i - index];
-				}
-			}
-
-			buf[index] = c;
-			
-			index += 1;
-		}
-
-		set_cursor_pos(cur_x, cur_y);
-		crt_set_cursor_pos(cur_x + index, cur_y);
-		clear_line();
-		kprint(buf);
-	}
-
-	kprint("\n");
-
-	return index;
 }
 
 byte blkgetch(void) {
@@ -427,20 +378,6 @@ byte get_style(void) {
 	return cur_style;
 }
 
-byte get_style_from(size_t column, size_t row) {
-	if (stdout.get_style)
-		return stdout.get_style(column, row);
-	
-	return 0;
-}
-
-byte getch_from(size_t column, size_t row) {
-	if (stdout.getch)
-		return stdout.getch(column, row);
-	
-	return 0;
-}
-
 size_t get_columns(void) {
 	return stdout.columns;
 }
@@ -449,66 +386,9 @@ size_t get_rows(void) {
 	return stdout.rows;
 }
 
-void setch(size_t column, size_t row, byte style, byte c) {
-	if (stdout.setch) {
-		stdout.setch(column, row, style, c);
-	}
-}
-
 void putch(byte c) {
-	size_t columns = get_columns();
-
-	size_t rows = get_rows();
-
-	if (columns <= 0 || rows <= 0)
-		return;
-
-	ssize_t cur_pos = (cur_y * columns) + cur_x;
-	
-	switch (c) {
-		case '\b':
-			cur_x -= 1; break;
-
-		case '\t':
-			cur_x += 4; break;
-		
-		case '\n':
-			cur_y += 1; break;
-		
-		case '\r':
-			cur_x = 0; break;
-		
-		default:
-			if (cur_pos >= 0 && cur_pos < VGA_VIDMEM_SIZE)
-				setch(cur_x, cur_y, cur_style, c);
-
-			cur_x += 1;
-	}
-
-	cur_pos = CLAMP((cur_y * columns) + cur_x, 0, columns * get_rows());
-
-	size_t column = columns > 0 ? cur_pos % columns : 0;
-	size_t row = columns > 0 ? cur_pos / columns : 0;
-
-	set_cursor_pos(column, row);
-
-	while (cur_y >= rows) {
-		for (size_t i = 0; i < rows - 1; i++) {
-			size_t next_i = i + 1;
-
-			for (size_t j = 0; j < columns; j++) {
-				byte style = get_style_from(j, next_i);
-				byte c = getch_from(j, next_i);
-
-				setch(j, i, style, c);
-			}
-		}
-
-		for (size_t j = 0; j < columns; j++) {
-			setch(j, rows - 1, 0, 0);
-		}
-
-		cur_y--;
+	if (stdout.putch) {
+		stdout.putch(cur_style, c);
 	}
 }
 
@@ -517,7 +397,7 @@ void clear_screen(byte style) {
 
 	size_t rows = get_rows();
 
-	set_cursor_pos(0, 0);
+	set_cursor_pos(0, 0, false);
 
 	for (size_t i = 0; i < columns * rows; i++) {
 		set_style(style);
@@ -525,20 +405,24 @@ void clear_screen(byte style) {
 		putch(' ');
 	}
 
-	set_cursor_pos(0, 0);
+	set_cursor_pos(0, 0, false);
+	// set_cursor_pos(0, 0, true);
 }
 
 void clear_line() {
-	ssize_t old_x = cur_x, old_y = cur_y;
+	ssize_t old_x = 0, old_y = 0;
 
-	for (size_t i = 0; i < (get_columns() - cur_x); i++) {
+	get_cursor_pos(&old_x, &old_y);
+
+	for (size_t i = 0; i < (get_columns() - old_x); i++) {
 		putch(' ');
 	}
 
-	set_cursor_pos(old_x, old_y);
+	set_cursor_pos(old_x, old_y, false);
+	// set_cursor_pos(old_x, old_y, true);
 }
 
-size_t kprint(const c_str str) {
+size_t kprint(const byte* str) {
 	size_t i = 0;
 
 	for (; str[i]; i++) {
@@ -549,12 +433,10 @@ size_t kprint(const c_str str) {
 		else putch(str[i]);
 	}
 
-	// crt_set_cursor_pos(cur_x, cur_y);
-
 	return i;
 }
 
-size_t sprint(byte *c, const c_str str) {
+size_t sprint(byte *c, const byte* str) {
 	if (!c) return 0;
 
 	size_t index = 0;
@@ -636,11 +518,13 @@ size_t parse_ext_specf(const byte* format, byte def_style) {
 			byte color = colors_available[index];
 
 			if (color == 0x80) {
-				byte cur_style = get_style();
+				// byte cur_style = get_style();
 
 				byte fg = cur_style & 0x0F;
 
-				byte bg = (cur_style >> 4) & 0x0F;
+				byte bg = cur_style >> 4;
+
+				fg = vga_is_blink() ? (fg & 0x07) : (fg & 0x0F);
 
 				set_style(bg | (fg << 4));
 
@@ -665,7 +549,7 @@ size_t parse_ext_specf(const byte* format, byte def_style) {
 	return temp_i;
 }
 
-ssize_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
+ssize_t vsnprintf(byte* s, ssize_t max_len, const byte* format, va_list list) {
 	ssize_t w_index = 0;
 
 	for (size_t i = 0; format[i]; i++) {
@@ -1108,7 +992,7 @@ ssize_t vsnprintf(byte* s, ssize_t max_len, const c_str format, va_list list) {
 	return w_index;
 }
 
-ssize_t snprintf(byte *c, ssize_t max_len, const c_str format, ...) {
+ssize_t snprintf(byte *c, ssize_t max_len, const byte* format, ...) {
 	va_list list;
 
 	va_start(list, format);
@@ -1120,11 +1004,11 @@ ssize_t snprintf(byte *c, ssize_t max_len, const c_str format, ...) {
 	return writed;
 }
 
-ssize_t vsprintf(byte* c, const c_str format, va_list list) {
+ssize_t vsprintf(byte* c, const byte* format, va_list list) {
 	return vsnprintf(c, -1, format, list);
 }
 
-ssize_t sprintf(byte* c, const c_str format, ...) {
+ssize_t sprintf(byte* c, const byte* format, ...) {
 	va_list list;
 
 	va_start(list, format);
@@ -1136,7 +1020,7 @@ ssize_t sprintf(byte* c, const c_str format, ...) {
 	return writed;
 }
 
-size_t kprintf(const c_str format, ...) {
+size_t kprintf(const byte* format, ...) {
 	va_list list;
 
 	va_start(list, format);
@@ -1543,17 +1427,15 @@ size_t kprintf(const c_str format, ...) {
 			putch(*c); w_index += 1;
 		}
 	}
-	
-	set_style(def_style);
 
 	va_end(list);
-
-	crt_set_cursor_pos(cur_x, cur_y);
+	
+	set_style(def_style);
 
 	return w_index;
 }
 
-size_t sscanf(const byte* s, const c_str format, ...) {
+size_t sscanf(const byte* s, const byte* format, ...) {
 	va_list list;
 
 	va_start(list, format);
@@ -2002,32 +1884,32 @@ byte lower(byte c) {
 	return isupper(c) ? (c - 'A' + 'a') : c;
 }
 
-static byte* str = nullptr; static size_t str_len = 0;
+static byte* strtok_str = nullptr; static size_t str_len = 0;
 
-static ssize_t index = 0;
+static ssize_t strtok_index = 0;
 
 byte* strtok(byte* _str, const byte* delim) {
 	if (!_str) {
-		if (!str) return nullptr;
+		if (!strtok_str) return nullptr;
 
-		if (index < 0) return nullptr;
+		if (strtok_index < 0) return nullptr;
 
-		for (size_t i = index + 1; i < str_len; i++) {
-			if (str[i] == 0) {
-				byte* result = str + i + 1;
+		for (size_t i = strtok_index + 1; i < str_len; i++) {
+			if (strtok_str[i] == 0) {
+				byte* result = strtok_str + i + 1;
 
-				index = i;
+				strtok_index = i;
 
 				return result;
 			}
 		}
 
-		index = 0;
+		strtok_index = 0;
 		
 		return nullptr;
 	}
 
-	str = _str;
+	strtok_str = _str;
 	
 	size_t delim_len = strlen(delim);
 
@@ -2048,32 +1930,32 @@ byte* strtok(byte* _str, const byte* delim) {
 
 byte* parse_cli_args(byte* _str) {
 	if (!_str) {
-		if (!str) return nullptr;
+		if (!strtok_str) return nullptr;
 
-		if (index < 0) return nullptr;
+		if (strtok_index < 0) return nullptr;
 
-		for (size_t i = index + 1; i < str_len; i++) {
-			if (str[i] == 0) {
+		for (size_t i = strtok_index + 1; i < str_len; i++) {
+			if (strtok_str[i] == 0) {
 				for (; i < str_len; i++) {
-					if (str[i] != 0) break;
+					if (strtok_str[i] != 0) break;
 				}
 
-				byte* result = str + i;
+				byte* result = strtok_str + i;
 
-				index = i;
+				strtok_index = i;
 
 				return result;
 			}
 		}
 
-		index = 0;
+		strtok_index = 0;
 		
 		return nullptr;
 	}
 
 	str_len = strlen(_str);
 
-	str = _str;
+	strtok_str = _str;
 
 	bool quotes = false;
 	bool double_quotes = false;
@@ -2101,8 +1983,16 @@ byte* parse_cli_args(byte* _str) {
 			else escape = false;
 		}
 
+		if (_str[i] == '#' && !quotes && !double_quotes) {
+			_str[i] = 0;
+
+			str_len = i; break;
+		}
+
 		if (_str[i] == '\\') {
 			escape = true;
+
+			// _str[i] = 0;
 
 			size_t k = i;
 
@@ -2119,7 +2009,7 @@ byte* parse_cli_args(byte* _str) {
 			}
 		}
 
-		if (_str[i] == ' ' && !quotes && !double_quotes) {
+		if ((_str[i] == ' ' || _str[i] == '\t') && !quotes && !double_quotes) {
 			_str[i] = 0;
 		}
 	}
@@ -2128,20 +2018,20 @@ byte* parse_cli_args(byte* _str) {
 }
 
 void strip_str(byte* str, size_t size) {
-	for (size_t i = size; i >= 0 && str[i] == ' '; i--) {
+	for (size_t i = size; str[i] == ' '; i--) {
 		if (str[i] != ' ') break;
 
 		str[i] = 0;
 	}
 }
 
-static const c_str num_alphabet = 
+static const byte* num_alphabet = 
 "0123456789"
 "ABCDEFGHIJ"
 "KLMNOPQRST"
 "UVWXYZ";
 
-static ssize_t ch_index_in_alphabet(char c, const c_str alphabet, size_t alphabet_size) {
+static ssize_t ch_index_in_alphabet(char c, const byte* alphabet, size_t alphabet_size) {
 	if (alphabet == nullptr || alphabet_size == 0) {
 		kprint("Check char in alphabet failure: "
 				"alphabet is nullptr or alphabet_size = 0\n");
@@ -2156,7 +2046,7 @@ static ssize_t ch_index_in_alphabet(char c, const c_str alphabet, size_t alphabe
 	return -1;
 }
 
-ErrorCode parse_hex(byte* result, size_t res_size, const c_str str) {
+ErrorCode parse_hex(byte* result, size_t res_size, const byte* str) {
 	if (str == nullptr) {
 		kprint("Hex parse failure: str is nullptr\n"); return CODE_FAIL;
 	}
@@ -2196,7 +2086,7 @@ ErrorCode parse_hex(byte* result, size_t res_size, const c_str str) {
 	return CODE_OK;
 }
 
-int parse_num(const c_str str, uintmax_t radix, uintmax_t* _result, size_t* len) {
+int parse_num(const byte* str, uintmax_t radix, uintmax_t* _result, size_t* len) {
 	if (str == nullptr) {
 		return PARSE_NUM_INVLD_STR;
 	}
@@ -2238,7 +2128,7 @@ int parse_num(const c_str str, uintmax_t radix, uintmax_t* _result, size_t* len)
 	return PARSE_NUM_OK;
 }
 
-int nparse_num(const c_str str, ssize_t max_size, uintmax_t radix, uintmax_t* _result, size_t* len) {
+int nparse_num(const byte* str, ssize_t max_size, uintmax_t radix, uintmax_t* _result, size_t* len) {
 	if (str == nullptr) {
 		return PARSE_NUM_INVLD_STR;
 	}
@@ -2303,9 +2193,9 @@ void print_hex(byte* num, size_t offset, size_t size) {
 
 	size_t i = 0;
 
-	size_t pos_x = 0;
+	ssize_t pos_x = 0;
 
-	disable_blink();
+	vga_disable_blink();
 
 	size_t step = 3;
 
@@ -2410,11 +2300,9 @@ void print_hex(byte* num, size_t offset, size_t size) {
 	}
 
 	kprintf("└%0m─*s┴%0m─*s┴%0m─*s┴%0m─*s┘", digits, "", width, "", digits, "", ascii_buf_size, "");
-
-	crt_set_cursor_pos(cur_x, cur_y);
 }
 
-static size_t snprint_unum(byte* s, size_t max_size, uintmax_t num, uintmax_t base) {
+static size_t snprint_unum(byte* s, ssize_t max_size, uintmax_t num, uintmax_t base) {
 	if (base <= 0 || base >= strlen(num_alphabet)) {
 		kprint("Base not in range 2...37\n");
 
@@ -2423,9 +2311,6 @@ static size_t snprint_unum(byte* s, size_t max_size, uintmax_t num, uintmax_t ba
 
 	if (max_size == 0)
 		return 0;
-
-	if (max_size < 0)
-		max_size = strlen(s);
 
 	if (num < base) {
 		s[0] = num_alphabet[num];
@@ -2438,7 +2323,7 @@ static size_t snprint_unum(byte* s, size_t max_size, uintmax_t num, uintmax_t ba
 	ssize_t index = digits;
 
 	while (num >= base && index > 0) {
-		if (index < max_size)
+		if (max_size < 0 || index < max_size)
 			s[index] = num_alphabet[num % base];
 
 		num /= base;
@@ -2448,7 +2333,7 @@ static size_t snprint_unum(byte* s, size_t max_size, uintmax_t num, uintmax_t ba
 	
 	s[0] = num_alphabet[num % base];
 
-	return MIN(max_size, digits + 1);
+	return max_size > 0 ? MIN(max_size, digits + 1) : digits + 1;
 }
 
 size_t snprint_num(byte* s, ssize_t max_size, size_t num, size_t base, bool num_signed, bool always_show_sign) {
@@ -2456,7 +2341,7 @@ size_t snprint_num(byte* s, ssize_t max_size, size_t num, size_t base, bool num_
 		return 0;
 	}
 
-	size_t result = 0;
+	ssize_t result = 0;
 
 	if (num_signed) {
 		size_t mask = 1ULL << ((sizeof(num) * 8ULL) - 1ULL);
@@ -2514,24 +2399,43 @@ size_t print_num(uintmax_t num, uintmax_t base, bool num_signed, bool always_sho
 
 	kprint(buf);
 
-	crt_set_cursor_pos(cur_x, cur_y);
-
 	return result;
 }
 
-void set_cursor_pos(ssize_t _x, ssize_t _y) {
-	size_t columns = get_columns();
+void set_cursor_pos(ssize_t _x, ssize_t _y, bool view) {
+	if (_x == -1 && _y == -1) {
+		if (stdout.disable_view_cursor)
+			stdout.disable_view_cursor();
+		
+		return;
+	}
+
+	if (view) {
+		if (stdout.enable_view_cursor)
+			stdout.enable_view_cursor();
+	}
+
+	ssize_t columns = (ssize_t)get_columns();
+	ssize_t rows 	= (ssize_t)get_rows();
+
+	if (_x == -1)
+		_x = columns;
+	
+	if (_y == -1)
+		_y = rows;
 
 	ssize_t pos = _x + (_y * columns);
 
 	ssize_t x = columns > 0 ? pos % columns : 0;
 	ssize_t y = columns > 0 ? pos / columns : 0;
 
-	cur_x = x; cur_y = y;
+	if (stdout.set_cur_pos) {
+		stdout.set_cur_pos(x, y, view);
+	}
 }
 
 void get_cursor_pos(ssize_t* x, ssize_t* y) {
-	if (x) *x = cur_x;
-
-	if (y) *y = cur_y;
+	if (stdout.get_cur_pos) {
+		stdout.get_cur_pos(x, y);
+	}
 }

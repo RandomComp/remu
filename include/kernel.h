@@ -26,6 +26,6 @@ typedef struct __init_kernel_args_t {
 } __init_kernel_args_t;
 #endif
 
-void report(const c_str msg);
+void report(const byte* msg);
 
 #endif

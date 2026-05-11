@@ -38,8 +38,6 @@
 
 #include <string.h>
 
-#include <setjmp.h>
-
 #include <signal.h>
 
 #include <pthread.h>
@@ -71,8 +69,9 @@ tick_timer_t emulator_setup_tick_timer(emulator_t* _emulator, tick_timer_handler
 		return (tick_timer_t){ 0 };
 	}
 
+	// TODO: ms * 2 -- ╨╕╤ü╨┐╤Ç╨░╨▓╨╕╤é╤î ╨▓╤Ç╨╡╨╝╨╡╨╜╨╜╨╛╨╡ ╤Ç╨╡╤ê╨╡╨╜╨╕╨╡
 	tick_timer_t timer = (tick_timer_t){ 
-		.handler = handler, .ms = ms, .last_time = emulator->ticks
+		.handler = handler, .ms = ms * 2, .last_time = emulator->ticks
 	};
 
 	if (!emulator) {
@@ -145,7 +144,7 @@ void emulator_update_timer(tick_timer_t* tick_timer, uint64 cur_ticks) {
 
 	if (dur >= tick_timer->ms) {
 		tick_timer->handler();
-					
+
 		tick_timer->last_time = cur_ticks;
 	}
 }
@@ -153,7 +152,7 @@ void emulator_update_timer(tick_timer_t* tick_timer, uint64 cur_ticks) {
 void emulator_update_all(emulator_t* _emulator) {
 	emulator_t* emulator = _emulator;
 
-	if (!_emulator && cur) emulator = cur;
+	if (!emulator) emulator = cur;
 
 	if (!emulator) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "Cannot update all timers: no emulator instance provided");
@@ -169,15 +168,9 @@ void emulator_update_all(emulator_t* _emulator) {
 	
 	if (!emulator->is_hardware_reseting) {
 		for (size_t i = 0; i < emulator->tick_timers_cnt; i++) {
-			tick_timer_t* tick_timer = &emulator->tick_timers[i];
+			tick_timer_t* tick_timer = &(emulator->tick_timers[i]);
 
 			emulator_update_timer(tick_timer, emulator->ticks);
-
-			time_t dur = emulator->ticks - tick_timer->last_time;
-
-			if (dur >= tick_timer->ms) {
-				tick_timer->last_time = emulator->ticks;
-			} 
 		}
 	}
 
@@ -530,6 +523,16 @@ void main_loop(emulator_t* _emulator, multiboot_section_t* multiboot_section) {
 
 		if (need_exit) break;
 
+		// TODO: ╨ö╨╛╨┐╨╕╤ü╨░╤é╤î ╨╕╤ü╨┐╨╛╨╗╤î╨╖╨╛╨▓╨░╨╜╨╕╨╡ SDL_GetKeyboardState ╨┤╨╗╤Å ╨│╨╡╨╜╨╡╤Ç╨░╤å╨╕╨╕ ╤ü╨╛╨▒╤ï╤é╨╕╨╣ ╨║╨╗╨░╨▓╨╕╤ê PS/2
+
+		// int numkeys = 0;
+
+		// uint8* kbd_states = SDL_GetKeyboardState(&numkeys);
+
+		// for (int i = 0; i < numkeys; i++) {
+			
+		// }
+
 		if (!emulator->is_hardware_reseting)
 			emulator_update_all(emulator);
 
@@ -550,9 +553,13 @@ void main_loop(emulator_t* _emulator, multiboot_section_t* multiboot_section) {
 
 		// SDL_Delay((uint32)(itval_ns / 1000000));
 
-		usleep(itval_ns / 1000);
+		// usleep(itval_ns / 1000);
+
+		usleep(cpu_get_itval_ns(emulator->cpu) / 1000);
 
 		// TODO: ╨í╨┤╨╡╨╗╨░╤é╤î ╨╕╨╖╨╝╨╡╤Ç╨╡╨╜╨╕╨╡ ╤Ç╨╡╨░╨╗╤î╨╜╨╛╨│╨╛ ╨▓╤Ç╨╡╨╝╨╡╨╜╨╕ ╨╖╨░╨┤╨╡╤Ç╨╢╨║╨╕ ╨╕ ╨░╨┤╨░╨┐╤é╨╕╤Ç╨╛╨▓╨░╨╜╨╕╨╡
+
+		// TODO: ╨ÿ╤ü╨┐╤Ç╨░╨▓╨╕╤é╤î ╨▒╨░╨│ ╤ü ╤â╤ü╨║╨╛╤Ç╨╡╨╜╨╕╨╡╨╝ ╨▓ ╨┤╨▓╨░ ╤Ç╨░╨╖╨░
 	}
 	#else
 	emulator_setup_tick_timer(emulator, handle_keys_cli, 10);
@@ -592,6 +599,8 @@ kernel_t* emulator_load_kernel(const byte* filename) {
 
 		dlclose(os_handle);
 
+		free(kernel);
+
 		return nullptr;
 	}
 
@@ -602,6 +611,8 @@ kernel_t* emulator_load_kernel(const byte* filename) {
 
 		dlclose(os_handle);
 
+		free(kernel);
+
 		return nullptr;
 	}
 
@@ -611,6 +622,8 @@ kernel_t* emulator_load_kernel(const byte* filename) {
 		emulator_log(true, LOG_SEVERITY_ERROR, "No such function named \"kmain\" in provided \"%s\". Please verify the function name.", filename);
 
 		dlclose(os_handle);
+
+		free(kernel);
 
 		return nullptr;
 	}
@@ -630,7 +643,7 @@ kernel_t* emulator_load_kernel(const byte* filename) {
 	kernel_args.__emulator_start_tsc = start_tsc;
 	kernel_args.__emulator_idt_flush = idt_flush_emulator;
 
-	kernel->__emulator_init_kernel(kernel_args);
+	kernel->__emulator_init_kernel(&kernel_args);
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Kernel initialized");
 

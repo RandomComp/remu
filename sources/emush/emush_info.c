@@ -20,7 +20,7 @@ extern byte* ram;
 
 extern multiboot_info_t* multiboot;
 
-const c_str logo[] =
+const byte* logo[] =
 {
 	"%vfbr███████%vd %vfbg███    ███%vd %vfby██    ██%vd        ██████  ███████\n", 
 	"%vfbr██     %vd %vfbg████  ████%vd %vfby██    ██%vd       ██    ██ ██     \n",
@@ -29,7 +29,7 @@ const c_str logo[] =
 	"%vfbr███████%vd %vfbg██      ██%vd %vfby ██████ %vd        ██████  ███████\n"
 };
 
-const c_str view_logo[] =
+const byte* view_logo[] =
 {
 	"███████ ███    ███ ██    ██        ██████  ███████", 
 	"██      ████  ████ ██    ██       ██    ██ ██     ",
@@ -38,13 +38,13 @@ const c_str view_logo[] =
 	"███████ ██      ██  ██████         ██████  ███████"
 };
 
-const c_str version_logo[] =
+const byte* version_logo[] =
 {
-	"██    ██  ██████     ██████  ██████ \n", 
-	"██    ██ ██  ████         ██      ██\n", 
-	"██    ██ ██ ██ ██     █████   █████ \n", 
-	" ██  ██  ████  ██         ██ ██     \n", 
-	"  ████    ██████  ██ ██████  ███████\n"
+	" ██████     ██████  ███████\n\r",
+	"██  ████         ██ ██     \n\r", 
+	"██ ██ ██     █████  ███████\n\r", 
+	"████  ██         ██      ██\n\r", 
+	" ██████  ██ ██████  ███████\n\r", 
 };
 
 int info_cmd(const byte **argv, size_t argc) {
@@ -77,8 +77,6 @@ int info_cmd(const byte **argv, size_t argc) {
 	size_t ram_size = get_ram_size(multiboot);
 
 	sprintf(info[1], "%zu MB", ram_size / 0x100000);
-
-	disable_blink();
 
 	if (is_fb_available) {
 		sprintf(info[2], "%u%wx%u", multiboot->fb_width, multiboot->fb_height);
@@ -178,6 +176,8 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	size_t center = (columns / 2) - (max_info_name_len + max_info_len + 1) / 2;
 
+	vga_disable_blink();
+
 	kprintf("%*s┌%0m─*s┐\n", center, "", max_info_name_len + max_info_len + 1, "");
 
 	kprintf("%*s│%vfbq%=*s%vd│\n", center, "", max_info_name_len + max_info_len + 1, EMULATOR_NAME_STR);
@@ -198,7 +198,7 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	get_cursor_pos(nullptr, &y);
 
-	set_cursor_pos((columns / 2) - 16 / 2, y);
+	set_cursor_pos((columns / 2) - 16 / 2, y, false);
 	
 	for (size_t i = 0; i < 8; i++) {
 		set_style(i << 4); kprint("  ");
@@ -206,7 +206,7 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	set_style(0x0F);
 
-	set_cursor_pos((columns / 2) - 16 / 2, y + 1);
+	set_cursor_pos((columns / 2) - 16 / 2, y + 1, false);
 	
 	for (size_t i = 8; i < 16; i++) {
 		set_style(i << 4); kprint("  ");
@@ -214,7 +214,7 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	set_style(0x0F);
 
-	set_cursor_pos(0, y + 3);
+	set_cursor_pos(0, y + 3, false);
 
 	#define note_message "Note: to see more information about ATA and SFS use:"
 

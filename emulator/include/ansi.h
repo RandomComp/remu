@@ -29,11 +29,14 @@ typedef enum ansi_id {
 #define bold "\x1B[1m"
 #define darkish "\x1B[2m"
 #define italic "\x1B[3m"
-#define underline "\x1B[4m"
+
+#define overline 		"\x1B[53m"
+#define strikethrough 	"\x1B[9m"
+#define underline 		"\x1B[4m"
+
 #define blink "\x1B[6m"
 #define inverse "\x1B[7m"
 #define invisible_text "\x1B[8m"
-#define strikethrough "\x1B[9m"
 
 #define white_bg "\x1B[47m"
 #define white_fg "\x1B[37m"

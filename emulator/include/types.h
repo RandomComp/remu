@@ -1,7 +1,7 @@
 #ifndef _EMULATOR_BASIC_TYPES_H
 #define _EMULATOR_BASIC_TYPES_H
 
-// Фактически заимствованно из R-OS Boosted (ранее Random OS Boosted)
+// ╨ñ╨░╨║╤é╨╕╤ç╨╡╤ü╨║╨╕ ╨╖╨░╨╕╨╝╤ü╤é╨▓╨╛╨▓╨░╨╜╨╜╨╛ ╨╕╨╖ R-OS Boosted (╤Ç╨░╨╜╨╡╨╡ Random OS Boosted)
 
 #define true 1
 
@@ -88,7 +88,7 @@ typedef enum ErrorCode {
 #define IS_UNIX
 #endif
 
-#if (defined(_WIN32) || defined(_WIN64))
+#if (defined(_WIN32) || defined(_WIN64) || defined(__MINGW32__) || defined(__MINGW64__))
 #define PLATFORM_NAME "Windows"
 #elif (defined(__ANDROID__))
 #define PLATFORM_NAME "Android"
@@ -172,6 +172,10 @@ typedef signed short int16;
 	typedef signed long long int64;
 #endif
 
+#include <sys/types.h>
+
+// typedef size_t _size_t;
+
 #if defined(BITS_16)
 
 typedef uint16 _size_t;
@@ -190,10 +194,6 @@ typedef int64 _ssize_t;
 #endif
 
 typedef _size_t word;
-
-typedef char* c_str;
-
-typedef c_str* c_str_ptr;
 
 typedef _Bool bool;
 

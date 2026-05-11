@@ -104,19 +104,19 @@ static inline int32 strncmp_slow(const byte* s1, const byte* s2, int32 len) {
 
 #ifdef USE_BUILTIN_STRING
 
-static inline void* memset_builtin(void* addr, int32 val, int32 len) {
+static inline void* memset_builtin(void* addr, int val, uint64 len) {
 	return __builtin_memset(addr, val, len);
 }
 
-static inline void* memcpy_builtin(void* dest, const void* src, int32 len) {
+static inline void* memcpy_builtin(void* dest, const void* src, uint64 len) {
 	return __builtin_memcpy(dest, src, len);
 }
 
-static inline int32 strcmp_builtin(const byte* s1, const byte* s2) {
+static inline uint64 strcmp_builtin(const byte* s1, const byte* s2) {
 	return __builtin_strcmp(s1, s2);
 }
 
-static inline int32 memcmp_builtin(const void* p1, const void* p2, int32 len) {
+static inline uint64 memcmp_builtin(const void* p1, const void* p2, uint64 len) {
 	if (__builtin_constant_p(len) && len == 2) {
 		uint16* q1 = p1, *q2 = p2;
 
@@ -132,11 +132,11 @@ static inline int32 memcmp_builtin(const void* p1, const void* p2, int32 len) {
 	return __builtin_memcmp(p1, p2, len);
 }
 
-static inline int32 strlen_builtin(const byte* p) {
+static inline uint64 strlen_builtin(const byte* p) {
 	return __builtin_strlen(p);
 }
 
-static inline int32 strncmp_builtin(const byte* s1, const byte* s2, int32 len) {
+static inline uint64 strncmp_builtin(const byte* s1, const byte* s2, uint64 len) {
 	return __builtin_strncmp(s1, s2, len);
 }
 

@@ -7,7 +7,7 @@
 
 #include <stddef.h>
 
-#include <bits/types/FILE.h>
+#include <stdio.h>
 
 typedef enum log_severity_e {
 	LOG_SEVERITY_TRACE,

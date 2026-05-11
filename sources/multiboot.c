@@ -38,7 +38,7 @@ void display_multiboot(void* ram, uint32 magic, multiboot_info_t* multiboot) {
 	}
 	
 	if (is_cmdline_available) {
-		kprintf("multiboot->cmdline = %s\n\r", ram + multiboot->cmdline);
+		kprintf("multiboot->cmdline = %s\n\r", (byte*)ram + multiboot->cmdline);
 	}
 
 	if (is_mmap_available) {
@@ -57,7 +57,7 @@ void display_multiboot(void* ram, uint32 magic, multiboot_info_t* multiboot) {
 	}
 
 	if (is_bootloader_name_available) {
-		kprintf("multiboot->boot_loader_name = %s\n\r", ram + multiboot->boot_loader_name);
+		kprintf("multiboot->boot_loader_name = %s\n\r", (byte*)ram + multiboot->boot_loader_name);
 	}
 
 	if (is_apm_available) {

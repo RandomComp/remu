@@ -82,7 +82,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 		print_hex(buf + (offset % 512), offset, 256);
 
-		set_cursor_pos(0, rows - 1);
+		set_cursor_pos(0, rows - 1, false);
 
 		kprintf("Sector: %zu", sector);
 
@@ -96,7 +96,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 				offset = MAX(0, offset - 256);
 
-				if ((offset / 512) != sector) {
+				if ((size_t)(offset / 512) != sector) {
 					sector = (offset / 512);
 					
 					ata_read_sector(buf, ATA_MASTER, sector, 1);
@@ -104,7 +104,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 				print_hex(buf + (offset % 512), offset, 256);
 
-				set_cursor_pos(0, rows - 1);
+				set_cursor_pos(0, rows - 1, false);
 
 				kprintf("Sector: %zu", sector);
 			}
@@ -114,7 +114,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 				offset = MIN(offset + 256, (sectors * 512) - 256);
 
-				if ((offset / 512) != sector) {
+				if ((size_t)(offset / 512) != sector) {
 					sector = (offset / 512);
 
 					ata_read_sector(buf, ATA_MASTER, sector, 1);
@@ -122,7 +122,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 				print_hex(buf + (offset % 512), offset, 256);
 
-				set_cursor_pos(0, rows - 1);
+				set_cursor_pos(0, rows - 1, false);
 
 				kprintf("Sector: %zu", sector);
 			}
@@ -153,10 +153,6 @@ int ata_cmd(const byte** argv, size_t argc) {
 
 			return -1;
 		}
-
-		uint32 sectors = 0;
-
-		ata_read_info(ATA_MASTER, &sectors, nullptr, nullptr);
 
 		size_t buf_index = 0;
 

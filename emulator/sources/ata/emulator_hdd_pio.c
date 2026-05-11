@@ -16,7 +16,7 @@
 
 #include <errno.h>
 
-#include <bits/types/FILE.h>
+#include <stdio.h>
 
 static hdd_ata_pio_t* cur = nullptr;
 
