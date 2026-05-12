@@ -6,7 +6,7 @@
 
 #include "math/math.h"
 
-#include "std.h"
+#include "std/stdlib.h"
 
 uint32 pci_read_config(byte bus, byte slot, byte func, byte offset) {
 	uint32 address = (1 << 31) | (bus << 16) | (slot << 11) | (func << 8) | (offset & 0xFC);

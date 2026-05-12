@@ -6,7 +6,7 @@
 
 #include "bcd.h"
 
-#include "std.h"
+#include "std/stdlib.h"
 
 void cmos_write_reg(byte reg, byte val) {
 	out8(0x70, reg);

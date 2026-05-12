@@ -2,12 +2,9 @@
 
 #include "types.h"
 
-#include "std.h"
+#include "std/stdlib.h"
 
 #include "terminal.h"
-
-#include "drivers/memory/memory.h"
-#include "drivers/io.h"
 
 #include "colors.h"
 
@@ -18,20 +15,23 @@
 #include "multiboot.h"
 
 #include "gdt.h"
-
 #include "idt.h"
 
+#include "drivers/memory/memory.h"
+#include "drivers/io.h"
 #include "drivers/hid/kbdps2.h"
-
 #include "drivers/ata/ata.h"
-
 #include "drivers/sfs/sfs.h"
-
 #include "drivers/video/vga.h"
-
+#include "drivers/video/vesa.h"
 #include "drivers/time/cmos.h"
 
 #include "emush/emush.h"
+
+#define VESA_WIDTH 800
+#define VESA_HEIGHT 600
+
+#define VESA_USING
 
 #ifdef __EMULATOR__
 __init_kernel_args_t kernel_args = { 0 };
@@ -40,10 +40,17 @@ static multiboot_section_t multiboot_section = {
 	.magic = 		0x1BADB002,
 	.flags = 		0b00000111,
 	.checksum = 	-(0x1BADB002 + 0b00000111),
+	#ifdef VESA_USING
+	.mode_type = 	0,
+	.width = 		VESA_WIDTH,
+	.height = 		VESA_HEIGHT,
+	.depth = 		32,
+	#else
 	.mode_type = 	1,
-	.width = 		VGA_COLUMNS,
-	.height = 		VGA_ROWS,
+	.width = 		80,
+	.height = 		25,
 	.depth = 		16,
+	#endif
 };
 
 PUBLIC void __emulator_init_kernel(__init_kernel_args_t* _kernel_args) {
@@ -63,10 +70,6 @@ static ssize_t command_index = 0;
 
 multiboot_info_t* multiboot = nullptr;
 
-const byte font[96][12] = {
-	#include "ascii.fnt"
-};
-
 void report(const byte* msg) {
 	for (size_t i = 0; msg[i]; i++) {
 		out8(0x80, msg[i]);
@@ -77,7 +80,7 @@ void report(const byte* msg) {
 
 static byte msg[64] = "\0"; size_t msg_index = 0;
 
-byte read_ch(void) {
+static byte read_ch(void) {
 	if (msg_index < strlen(msg)) {
 		byte result = msg[msg_index];
 
@@ -96,11 +99,20 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 
 	multiboot = _multiboot;
 
+	uint32* fb = (uint32*)multiboot->fb_addr;
+
 	ram = (byte*)get_ram();
 
 	init_vga();
 
-	terminal_out_t stdout = init_vga_stdout();
+	terminal_out_t stdout = { 0 };
+
+	#ifdef VESA_USING
+	stdout = init_vesa_stdout(fb, multiboot->fb_width, multiboot->fb_height, multiboot->fb_bpp, multiboot->fb_pitch);
+	
+	#else
+	stdout = init_vga_stdout();
+	#endif
 
 	kbdps2_init();
 
@@ -142,6 +154,13 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 
 	sfs_error_e err = sfs_read_file(ATA_MASTER, "autoexec", msg, 0, 63, nullptr);
 
+	// kprintf("writing font to drive...\n");
+
+	// uint32 readed = 0;
+
+	// sfs_create_file(ATA_MASTER, "ascii.fnt", font, sizeof(font));
+	// sfs_read_file(ATA_MASTER, "ascii.fnt", font, 0, sizeof(font), nullptr);
+
 	// for (size_t i = 0; i < 50; i++) {
 	// 	byte buf[16] = { 0 };
 	// 	byte buf2[32] = { 0 };
@@ -153,6 +172,8 @@ PUBLIC void kmain(uint32 magic, multiboot_info_t* _multiboot) {
 	// }
 
 	set_cursor_pos(0, 0, true);
+	
+	// TODO: ╨í╨┤╨╡╨╗╨░╤é╤î ╨╛╨┐╤Ç╨╡╨┤╨╡╨╗╨╡╨╜╨╕╨╡ ╨┐╤Ç╨╛╤å╨╡╤ü╤ü╨╛╤Ç╨░ ╨╕╤ü╨┐╨╛╨╗╤î╨╖╤â╤Å ╨╕╨╜╤ü╤é╤Ç╤â╨║╤å╨╕╤Ä CPUID
 
 	while (true) {
 		byte* ps1 = "";

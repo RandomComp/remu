@@ -10,8 +10,6 @@
 
 #include "math/math.h"
 
-#include "std.h"
-
 static uint16* vidmem = nullptr;
 
 static ssize_t cur_x = 0, cur_y = 0;
@@ -88,6 +86,12 @@ void vga_putch(byte style, byte c) {
 			break;
 	}
 
+	while (cur_x >= VGA_COLUMNS) {
+		cur_x -= VGA_COLUMNS;
+
+		cur_y++;
+	}
+	
 	while (cur_y >= VGA_ROWS) {
 		for (size_t i = 0; i < VGA_ROWS - 1; i++) {
 			size_t next_i = i + 1;

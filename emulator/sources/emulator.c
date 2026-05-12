@@ -367,8 +367,8 @@ emulator_t* init_emulator(bool gui, _ssize_t width, _ssize_t height, _ssize_t fr
 
 	emulator->is_hardware_reseting = false;
 
-	emulator_setup_port_in(0x80, debug_read);
-	emulator_setup_port_out(0x80, debug_write);
+	emulator_setup_port_in(0xE9, debug_read);
+	emulator_setup_port_out(0xE9, debug_write);
 
 	emulator_log(true, LOG_SEVERITY_INFO, "Emulator initialized");
 

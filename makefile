@@ -76,7 +76,7 @@ emulator_run:
 	@./emulator.out ./os.so
 
 emulator: $(EMULATOR_OBJFILES)
-	@$(CC) $^ -o $@.out -lSDL2 -lSDL2_image -pthread -lm
+	@$(CC) $^ -o $@.out -lSDL2 -lSDL2_image -pthread
 
 #	@$(CC) $^ -o $@.out -pthread
 

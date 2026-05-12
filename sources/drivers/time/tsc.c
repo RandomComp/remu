@@ -4,8 +4,6 @@
 
 #include "types.h"
 
-#include "std.h"
-
 #ifdef __EMULATOR__
 #include "kernel.h"
 

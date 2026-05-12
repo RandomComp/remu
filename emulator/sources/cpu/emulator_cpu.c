@@ -42,7 +42,7 @@ static void sig_winch(int UNUSED sig);
 const int cpu_signals[] = {
 	SIGHUP, SIGINT, SIGILL, SIGTRAP, SIGABRT, 
 	SIGBUS, SIGFPE, SIGSEGV, SIGTERM,
-	#ifdef IS_WIN
+	#ifndef IS_WIN
 	SIGSTKFLT,
 	#endif 
 	SIGTSTP, SIGXCPU, SIGXFSZ, SIGWINCH

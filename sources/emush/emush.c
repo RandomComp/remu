@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#include "std.h"
+#include "std/stdlib.h"
 
 #include "drivers/ata/ata.h"
 #include "drivers/sfs/sfs.h"
@@ -181,7 +181,9 @@ int cat_cmd(const byte** argv, size_t argc) {
 			return err;
 		}
 
-		kprintf("%.*s\n", readed, content);
+		for (size_t j = 0; j < MIN(4484, readed); j++) {
+			putch(content[j]);
+		}
 
 		kprintf("readed: %zu\n", readed);
 	}

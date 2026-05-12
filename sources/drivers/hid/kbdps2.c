@@ -4,7 +4,7 @@
 
 #include "idt.h"
 
-#include "std.h"
+#include "std/string.h"
 
 #include "drivers/video/vga.h"
 

@@ -82,7 +82,7 @@ typedef enum ErrorCode {
 
 // #define OS_BIG_ENDIAN
 
-#if (defined(_WIN32) || defined(_WIN64))
+#if (defined(_WIN32) || defined(_WIN64)) || (defined(__MINGW32__) || defined(__MINGW64__))
 #define IS_WIN 
 #elif (defined(__linux__) || defined(__APPLE__) || defined(__unix__) || defined(__unix) || defined(__FreeBSD__) || defined(__ANDROID__))
 #define IS_UNIX

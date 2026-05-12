@@ -2,7 +2,8 @@
 
 #include "types.h"
 
-#include "std.h"
+#include "std/stdio.h"
+#include "std/string.h"
 
 #include "drivers/io.h"
 
@@ -144,7 +145,7 @@ void ata_flush() {
 }
 
 byte ata_read_status(void) {
-	return in8(ATA_STATUS);
+	return in8(ATA_STATUS);	
 }
 
 byte* ata_err_description(byte status) {

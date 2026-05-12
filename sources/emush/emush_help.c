@@ -1,6 +1,6 @@
 #include "types.h"
 
-#include "std.h"
+#include "std/stdlib.h"
 
 #include "builtins/string.h"
 
@@ -194,7 +194,7 @@ void help_all(void) {
 		
 		max_description_len = MAX(max_description_len, 	(columns / 2) - 5);
 
-		max_name_len = columns - max_description_len - 7;
+		max_name_len = columns - max_description_len - 7 - 1;
 
 		inputed_c = 0;
 

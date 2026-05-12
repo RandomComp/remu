@@ -1,6 +1,10 @@
-from PIL import Image
+from PIL import Image, ImageDraw
+
+from pyperclip import copy
 
 img = Image.open("cp437-8x16.png").convert("RGB")
+
+draw = ImageDraw.Draw(img)
 
 pixels = list(img.getdata())
 
@@ -10,18 +14,35 @@ c_width = 8
 
 c_height = 16
 
-font = [0 for i in range(width * height // 8)]
+result = ""
 
-c_pos = 0
+cur_c = 0
 
-for i in range(width * height):
-	avg_color = sum(pixels[i]) // 3
+for i in range(0, height, c_height):
+	for j in range(0, width, c_width):
+		for y in range(c_height):
+			result += "0b"
 
-	index = i // 8
-	bit_index = i % 8
+			for x in range(c_width):
+				pos = j + x + ((i + y) * width)
 
-	if (avg_color >= 128):
-		font[index] |= 1 << (bit_index)
+				avg_color = sum(pixels[pos]) / len(pixels[pos])
 
-for pix in font:
-	print(bin(pix))
+				if (avg_color >= 128):
+					result += "1"
+				else:
+					result += "0"
+
+			result += ",\n"
+
+		draw.point((j, i), (0, 255, 0))
+
+		cur_c += 1
+
+result += "\n"
+
+print(result)
+
+copy(result)
+
+img.show()

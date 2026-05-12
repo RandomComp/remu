@@ -1,6 +1,6 @@
 #include "types.h"
 
-#include "std.h"
+#include "std/stdio.h"
 
 #include "drivers/time/cmos.h"
 

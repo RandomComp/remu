@@ -426,17 +426,15 @@ static int draw_vga_text_screen_gui(vga_text_screen_t* screen) {
 		}
 
 		uint32 fg_rgb_color = vga_color_to_rgb[fg_style];
-
 		uint32 bg_rgb_color = vga_color_to_rgb[bg_style];
 
 		if ((i >= inverse_start && i < inverse_end) ||
 			(i >= inverse_end && i < inverse_start)) {
 			fg_rgb_color = vga_color_to_rgb[15 - fg_style];
-
 			bg_rgb_color = vga_color_to_rgb[15 - bg_style];
 		}
-
-		bool transparent = false;
+			
+		draw_vga_ch(screen, ch, false, bg_rgb_color, fg_rgb_color, i, 0);
 
 		bool cursor_disabled = screen->vga_device->crt_reg_a & 0x20;
 
@@ -445,8 +443,8 @@ static int draw_vga_text_screen_gui(vga_text_screen_t* screen) {
 
 			_ssize_t row = screen->vga_device->cursor_pos / (_ssize_t)screen->vga_device->width;
 
-			size_t cursor_start 	= screen->vga_device->crt_reg_a & 0x1F;
-			size_t cursor_end 		= screen->vga_device->crt_reg_b & 0x1F;
+			size_t cursor_start = screen->vga_device->crt_reg_a & 0x1F;
+			size_t cursor_end 	= screen->vga_device->crt_reg_b & 0x1F;
 				
 			for (size_t j = cursor_start; j <= cursor_end; j++) {
 				size_t screen_x = column * VGA_CHAR_WIDTH;
@@ -456,11 +454,7 @@ static int draw_vga_text_screen_gui(vga_text_screen_t* screen) {
 
 				memset(screen->emulator_screen + screen_index, 0xFF, VGA_CHAR_WIDTH * sizeof(screen->emulator_screen[0]));
 			}
-
-			transparent = true;
 		}
-			
-		draw_vga_ch(screen, ch, transparent, bg_rgb_color, fg_rgb_color, i, 0);
 	}
 
 	return 0;

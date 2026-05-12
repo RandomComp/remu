@@ -4,7 +4,7 @@
 
 #include "types.h"
 
-#include "std.h"
+#include "std/stdlib.h"
 
 #include "builtins/builtins.h"
 
@@ -396,6 +396,7 @@ sfs_error_e sfs_read_file(byte drive, const byte* filename, byte* content, uint3
 
 		if (diff > 0) {
 			if (content) {
+
 				memcpy(content + offset, file_sector_buf.data, diff);
 			}
 

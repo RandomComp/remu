@@ -1,6 +1,7 @@
 #include "types.h"
 
-#include "std.h"
+#include "std/stdlib.h"
+#include "hex_viewer.h"
 
 #include "builtins/string.h"
 #include "builtins/builtins.h"
@@ -80,7 +81,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 		
 		clear_screen(0x0F);
 
-		print_hex(buf + (offset % 512), offset, 256);
+		hex_viewer(buf + (offset % 512), offset, 256);
 
 		set_cursor_pos(0, rows - 1, false);
 
@@ -102,7 +103,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 					ata_read_sector(buf, ATA_MASTER, sector, 1);
 				}
 
-				print_hex(buf + (offset % 512), offset, 256);
+				hex_viewer(buf + (offset % 512), offset, 256);
 
 				set_cursor_pos(0, rows - 1, false);
 
@@ -120,7 +121,7 @@ int ata_cmd(const byte** argv, size_t argc) {
 					ata_read_sector(buf, ATA_MASTER, sector, 1);
 				}
 
-				print_hex(buf + (offset % 512), offset, 256);
+				hex_viewer(buf + (offset % 512), offset, 256);
 
 				set_cursor_pos(0, rows - 1, false);
 

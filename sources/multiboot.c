@@ -1,6 +1,6 @@
 #include "multiboot.h"
 
-#include "std.h"
+#include "std/stdio.h"
 
 void display_multiboot(void* ram, uint32 magic, multiboot_info_t* multiboot) {
 	bool is_fb_available = (multiboot->flags & 0x1000) != 0;

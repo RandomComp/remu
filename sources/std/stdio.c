@@ -1,37 +1,18 @@
-#include "std.h"
-
 #include "types.h"
 
-#include "colors.h"
+#include "std/stdlib.h"
 
-#include "builtins/string.h"
+#include "std/stdio.h"
+
+#include "terminal.h"
 
 #include "drivers/video/vga.h"
 
-#include "drivers/hid/kbdps2.h"
+#include "colors.h"
 
-#include "builtins/builtins.h"
+extern terminal_out_t stdout;
 
-#include "math/math.h"
-
-#include "kernel.h"
-
-static terminal_out_t stdout = { 0 };
-
-static terminal_in_t stdin = { 0 };
-
-static byte cur_style = 0;
-
-void init_std(terminal_out_t _stdout, terminal_in_t _stdin) {
-	set_cursor_pos(0, 0, false);
-	set_cursor_pos(0, 0, true);
-
-	stdout = _stdout;
-
-	stdin = _stdin;
-
-	cur_style = 0x0F;
-}
+extern terminal_in_t stdin;
 
 byte getch(void) {
 	if (stdin.getch)
@@ -39,6 +20,19 @@ byte getch(void) {
 
 	return 0;
 }
+
+byte blkgetch(void) {
+	byte result = 0;
+
+	while (!result) {
+		result = getch();
+
+		halt();
+	}
+
+	return result;
+}
+
 
 size_t getstr(bool show, byte* buf, size_t buf_size) {
 	ssize_t index = 0;
@@ -358,68 +352,10 @@ byte* getstr_hist(bool show, size_t* _inputed_size, byte history[][64], ssize_t 
 	return buf;
 }
 
-byte blkgetch(void) {
-	byte result = 0;
-
-	while (!result) {
-		result = getch();
-
-		halt();
-	}
-
-	return result;
-}
-
-void set_style(byte style) {
-	cur_style = style;
-}
-
-byte get_style(void) {
-	return cur_style;
-}
-
-size_t get_columns(void) {
-	return stdout.columns;
-}
-
-size_t get_rows(void) {
-	return stdout.rows;
-}
-
 void putch(byte c) {
 	if (stdout.putch) {
-		stdout.putch(cur_style, c);
+		stdout.putch(get_style(), c);
 	}
-}
-
-void clear_screen(byte style) {
-	size_t columns = get_columns();
-
-	size_t rows = get_rows();
-
-	set_cursor_pos(0, 0, false);
-
-	for (size_t i = 0; i < columns * rows; i++) {
-		set_style(style);
-
-		putch(' ');
-	}
-
-	set_cursor_pos(0, 0, false);
-	// set_cursor_pos(0, 0, true);
-}
-
-void clear_line() {
-	ssize_t old_x = 0, old_y = 0;
-
-	get_cursor_pos(&old_x, &old_y);
-
-	for (size_t i = 0; i < (get_columns() - old_x); i++) {
-		putch(' ');
-	}
-
-	set_cursor_pos(old_x, old_y, false);
-	// set_cursor_pos(old_x, old_y, true);
 }
 
 size_t kprint(const byte* str) {
@@ -518,7 +454,7 @@ size_t parse_ext_specf(const byte* format, byte def_style) {
 			byte color = colors_available[index];
 
 			if (color == 0x80) {
-				// byte cur_style = get_style();
+				byte cur_style = get_style();
 
 				byte fg = cur_style & 0x0F;
 
@@ -1658,7 +1594,7 @@ size_t sscanf(const byte* s, const byte* format, ...) {
 				if (!ignore) {
 					int err = nparse_num(s + r_index, max_digits, radix, &result_num, &len);
 
-					if (err != PARSE_NUM_OK || len <= 0) {
+					if (err != 0 || len <= 0) {
 						va_end(list);
 
 						return writed_args;
@@ -1760,7 +1696,7 @@ size_t sscanf(const byte* s, const byte* format, ...) {
 
 				if (format[temp_i] == ']') temp_i += 1;
 
-				print_hex(selected_chars, 0, 128); kprint("\n\r");
+				// print_hex(selected_chars, 0, 128); kprint("\n\r");
 
 				byte inputed_c = s[r_index];
 
@@ -1822,207 +1758,6 @@ size_t sscanf(const byte* s, const byte* format, ...) {
 	va_end(list);
 
 	return writed_args;
-}
-
-uintmax_t get_num_digits(uintmax_t num, uintmax_t base, bool signable) {
-	uintmax_t result = 0;
-
-	if (num < 10) return 0;
-
-	if (signable) {
-		uintmax_t mask = 1ULL << ((sizeof(num) * 8ULL) - 1ULL);
-
-		bool sign = num & mask;
-					
-		if (sign) {
-			num = (~num) + 1; // Converting to positive number to negative, and vice versa
-		}
-	}
-
-	while (num >= base) {
-		result += 1;
-
-		num /= base;
-	}
-
-	return result;
-}
-
-bool isupper(byte c) {
-	return (c >= 'A') && (c <= 'Z');
-}
-
-bool islower(byte c) {
-	return (c >= 'a') && (c <= 'z');
-}
-
-bool isnum(byte c) {
-	return (c >= '0') && (c <= '9');
-}
-
-bool isalnum(byte c) {
-	return isalpha(c) || isnum(c);
-}
-
-bool isalpha(byte c) {
-	return islower(c) || isupper(c);
-}
-
-bool isascii(byte c) {
-	return (c >= ' ') && (c <= 126);
-}
-
-bool isprintable(byte c) {
-	return (c >= '!') && (c <= 254);
-}
-
-byte upper(byte c) {
-	return islower(c) ? (c - 'a' + 'A') : c;
-}
-
-byte lower(byte c) {
-	return isupper(c) ? (c - 'A' + 'a') : c;
-}
-
-static byte* strtok_str = nullptr; static size_t str_len = 0;
-
-static ssize_t strtok_index = 0;
-
-byte* strtok(byte* _str, const byte* delim) {
-	if (!_str) {
-		if (!strtok_str) return nullptr;
-
-		if (strtok_index < 0) return nullptr;
-
-		for (size_t i = strtok_index + 1; i < str_len; i++) {
-			if (strtok_str[i] == 0) {
-				byte* result = strtok_str + i + 1;
-
-				strtok_index = i;
-
-				return result;
-			}
-		}
-
-		strtok_index = 0;
-		
-		return nullptr;
-	}
-
-	strtok_str = _str;
-	
-	size_t delim_len = strlen(delim);
-
-	str_len = strlen(_str);
-
-	for (size_t i = 0; _str[i]; i++) {
-		size_t min_size = MIN(delim_len, str_len - 1);
-
-		if (strncmp(_str + i, delim, min_size) == 0) {
-			memset(_str + i, 0, min_size);
-
-			i += min_size - 1;
-		}
-	}
-
-	return _str;
-}
-
-byte* parse_cli_args(byte* _str) {
-	if (!_str) {
-		if (!strtok_str) return nullptr;
-
-		if (strtok_index < 0) return nullptr;
-
-		for (size_t i = strtok_index + 1; i < str_len; i++) {
-			if (strtok_str[i] == 0) {
-				for (; i < str_len; i++) {
-					if (strtok_str[i] != 0) break;
-				}
-
-				byte* result = strtok_str + i;
-
-				strtok_index = i;
-
-				return result;
-			}
-		}
-
-		strtok_index = 0;
-		
-		return nullptr;
-	}
-
-	str_len = strlen(_str);
-
-	strtok_str = _str;
-
-	bool quotes = false;
-	bool double_quotes = false;
-
-	bool escape = false;
-
-	for (size_t i = 0; _str[i]; i++) {
-		if (_str[i] == '"') {
-			if (!escape) {
-				double_quotes = !double_quotes;
-
-				_str[i] = 0;
-			}
-
-			else escape = false;
-		}
-
-		if (_str[i] == '\'') {
-			if (!escape) {
-				quotes = !quotes;
-
-				_str[i] = 0;
-			}
-
-			else escape = false;
-		}
-
-		if (_str[i] == '#' && !quotes && !double_quotes) {
-			_str[i] = 0;
-
-			str_len = i; break;
-		}
-
-		if (_str[i] == '\\') {
-			escape = true;
-
-			// _str[i] = 0;
-
-			size_t k = i;
-
-			for (size_t j = i; _str[j] != ' ' && j < str_len; j++) {
-				if (_str[j] != '\\') {
-					_str[k] = _str[j];
-
-					k++;
-				}
-			}
-
-			for (size_t j = k; _str[j] != ' ' && j < str_len; j++) {
-				_str[j] = ' ';
-			}
-		}
-
-		if ((_str[i] == ' ' || _str[i] == '\t') && !quotes && !double_quotes) {
-			_str[i] = 0;
-		}
-	}
-
-	return _str;
-}
-
-void strip_str(byte* str, size_t size) {
-	for (size_t i = size; str[i] == ' '; i--) {
-		if (str[i] != ' ') break;
-
-		str[i] = 0;
-	}
 }
 
 static const byte* num_alphabet = 
@@ -2188,120 +1923,6 @@ void snprint_hex(byte* s, ssize_t max_size, byte* num, size_t size) {
 	}
 }
 
-void print_hex(byte* num, size_t offset, size_t size) {
-	if (num == nullptr) return;
-
-	size_t i = 0;
-
-	ssize_t pos_x = 0;
-
-	vga_disable_blink();
-
-	size_t step = 3;
-
-	byte ascii_buf[] = { "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0" };
-
-	size_t digits = MAX(5, get_num_digits(offset + size, 16, false) + 1);
-
-	ssize_t width = get_columns() - (1 + (digits + 3) * 2 + sizeof(ascii_buf));
-
-	size_t ascii_buf_size = MIN(width / 3, sizeof(ascii_buf));
-
-	width = align_down(width, step) - (step * 2);
-
-	kprintf("┌%0m─*s┬%0m─*s┬%0m─*s┬%0m─*s┐\n\r", digits, "", width, "", digits, "", ascii_buf_size, "");
-
-	kprintf("│START│%=*s│%=*s│%=*s│\n\r", width, "HEX VIEW", digits, "END", ascii_buf_size, "ASCII");
-
-	kprintf("├%0m─*s┼%0m─*s┼%0m─*s┼%0m─*s┤\n\r", digits, "", width, "", digits, "", ascii_buf_size, "");
-
-	while (i < size) {
-		set_style(COLOR_BRIGHT_WHITE);
-
-		kprintf("│%vfw%.*lx%vd│", digits, MIN(size + offset, i + offset));
-
-		size_t ascii_colon_width = MIN(sizeof(ascii_buf), width / step);
-
-		#define READ_NUM(index) ((index) < (size) ? (num)[(index)] : 0)
-
-		memset(ascii_buf, 0, sizeof(ascii_buf));
-
-		size_t last_i = i;
-
-		pos_x = 0;
-		
-		while (pos_x < width) {
-			byte num_byte = READ_NUM(i);
-
-			byte hi = (num_byte >> 4) & 0xF,
-				lo = num_byte & 0xF;
-			
-			size_t color = (size_t)(hi + lo) / 2;
-			
-			if (hi == 0 && lo == 0) {
-				set_style(COLOR_WHITE);
-			}
-
-			else {
-				set_style(color >= 1 ? color : COLOR_BRIGHT_WHITE);
-			}
-
-			if (i >= size) {
-				putch(' '); 
-				putch(' '); 
-				putch(' ');
-			}
-
-			else {
-				putch(num_alphabet[hi]);
-				putch(num_alphabet[lo]);
-
-				putch(' ');
-			}
-
-			pos_x += step;
-
-			i += 1;
-		}
-
-		set_style(COLOR_BRIGHT_WHITE);
-
-		kprintf("│%vfw%.*lx%vd│", digits, MIN(size + offset, i + offset));
-
-		for (size_t k = 0; k < ascii_buf_size; k++) {
-			if (k >= (i - last_i)) {
-				putch(' '); continue;
-			}
-
-			byte num_byte = READ_NUM(last_i + k);
-
-			byte hi = (num_byte >> 4) & 0xF,
-				lo = num_byte & 0xF;
-			
-			size_t color = (size_t)(hi + lo) / 2;
-			
-			if (hi == 0 && lo == 0) {
-				set_style(COLOR_WHITE);
-			}
-
-			else {
-				set_style(color >= 1 ? color : COLOR_BRIGHT_WHITE);
-			}
-
-			if (isprintable(num_byte))
-				putch(num_byte);
-			else
-				putch('.');
-		}
-
-		set_style(COLOR_BRIGHT_WHITE);
-
-		kprint("│\n\r");
-	}
-
-	kprintf("└%0m─*s┴%0m─*s┴%0m─*s┴%0m─*s┘", digits, "", width, "", digits, "", ascii_buf_size, "");
-}
-
 static size_t snprint_unum(byte* s, ssize_t max_size, uintmax_t num, uintmax_t base) {
 	if (base <= 0 || base >= strlen(num_alphabet)) {
 		kprint("Base not in range 2...37\n");
@@ -2400,42 +2021,4 @@ size_t print_num(uintmax_t num, uintmax_t base, bool num_signed, bool always_sho
 	kprint(buf);
 
 	return result;
-}
-
-void set_cursor_pos(ssize_t _x, ssize_t _y, bool view) {
-	if (_x == -1 && _y == -1) {
-		if (stdout.disable_view_cursor)
-			stdout.disable_view_cursor();
-		
-		return;
-	}
-
-	if (view) {
-		if (stdout.enable_view_cursor)
-			stdout.enable_view_cursor();
-	}
-
-	ssize_t columns = (ssize_t)get_columns();
-	ssize_t rows 	= (ssize_t)get_rows();
-
-	if (_x == -1)
-		_x = columns;
-	
-	if (_y == -1)
-		_y = rows;
-
-	ssize_t pos = _x + (_y * columns);
-
-	ssize_t x = columns > 0 ? pos % columns : 0;
-	ssize_t y = columns > 0 ? pos / columns : 0;
-
-	if (stdout.set_cur_pos) {
-		stdout.set_cur_pos(x, y, view);
-	}
-}
-
-void get_cursor_pos(ssize_t* x, ssize_t* y) {
-	if (stdout.get_cur_pos) {
-		stdout.get_cur_pos(x, y);
-	}
 }

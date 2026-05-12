@@ -12,7 +12,7 @@
 
 #include "drivers/memory/memory.h"
 
-#include "std.h"
+#include "std/stdlib.h"
 
 #include "emush/emush.h"
 
@@ -59,13 +59,13 @@ int info_cmd(const byte **argv, size_t argc) {
 	byte* info_names[] = {
 		"Boot loader name",
 		"RAM size",
-		"Screen size",
-		"Colors",
-		"Video memory address",
+		"Frame buffer size",
+		"Frame buffer Colors",
+		"Frame buffer address",
 		"OS Loaded from",
-		"Sectors count",
-		"Model name",
-		"Serial number"
+		"Drive Sectors count",
+		"Drive Model name",
+		"Drive Serial number"
 	};
 
 	byte info[9][128] = {
@@ -90,7 +90,7 @@ int info_cmd(const byte **argv, size_t argc) {
 		}
 
 		else if (multiboot->fb_type == FB_TYPE_RGB) {
-			colors = 1 << multiboot->fb_bpp;
+			colors = (1ULL << (uint64)multiboot->fb_bpp) - 1;
 		}
 
 		else if (multiboot->fb_type == FB_TYPE_INDEXED) {
@@ -218,13 +218,17 @@ int info_cmd(const byte **argv, size_t argc) {
 
 	#define note_message "Note: to see more information about ATA and SFS use:"
 
+	size_t note_message_len = strlen(note_message);
+
+	center = (columns / 2) - note_message_len / 2;
+
 	kprintf("%*s" note_message "\n", center, "");
 
-	kprintf("%*s%=*s\n\r", center, "", strlen(note_message) - 1, "\"ata info\" for ata information");
+	kprintf("%*s%=*s\n\r", center, "", note_message_len - 1, "\"ata info\" for ata information");
 
-	kprintf("%*s%=*s\n\r", center, "", strlen(note_message) - 1, "\"sfs info\" for sfs information");
+	kprintf("%*s%=*s\n\r", center, "", note_message_len - 1, "\"sfs info\" for sfs information");
 
-	kprintf("%*s%=*s\n\r", center, "", strlen(note_message) - 1, "\"pci info/scan\" for pci information");
+	kprintf("%*s%=*s\n\r", center, "", note_message_len - 1, "\"pci info/scan\" for pci information");
 
 	kprint("\n");
 

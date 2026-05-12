@@ -81,11 +81,7 @@ typedef enum ErrorCode {
 
 // #define BITS_16
 
-#ifndef __EMULATOR__
 #define BITS_32
-#else
-#define BITS_64
-#endif
 
 // BITS 16 is unsupported now.
 
