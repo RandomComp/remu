@@ -21,7 +21,7 @@
 #include <time.h>
 
 void set_cursor_pos(_ssize_t col, _ssize_t row) {
-	printf("\x1B[%ld;%ldH", col, row);
+	printf("\x1B[%lld;%lldH", col, row);
 }
 
 void get_terminal_size(_ssize_t* columns, _ssize_t* rows) {
@@ -30,7 +30,7 @@ void get_terminal_size(_ssize_t* columns, _ssize_t* rows) {
 		GetConsoleScreenBufferInfo(GetStdHandle(STD_OUTPUT_HANDLE), &csbi);
 		if (columns) *columns = csbi.srWindow.Right - csbi.srWindow.Left + 1;
 		if (rows) *rows = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
-	#elifdef IS_UNIX
+	#elif defined(IS_UNIX)
 		struct winsize size;
 
 		ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);

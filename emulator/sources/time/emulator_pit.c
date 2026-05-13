@@ -26,6 +26,8 @@ static uint64 get_ms_from_divisor(uint16 _divisor) {
 }
 
 void setup_pit(emulator_t* emulator) {
+	// TODO: ╨ƒ╨╡╤Ç╨╡╨╜╨╡╤ü╤é╨╕ ╤é╨░╨╣╨╝╨╡╤Ç ╨╜╨░ API Linux
+
 	emulator_setup_tick_timer(emulator, gen_tick, get_ms_from_divisor(0));
 }
 
@@ -64,7 +66,9 @@ void free_pit(pit_t* pit) {
 }
 
 void release_pit(emulator_t* emulator, pit_t* pit) {
+	emulator_release_tick_timer(emulator, gen_tick);
+
 	if (pit) free_pit(pit);
 
-	emulator_release_tick_timer(emulator, gen_tick);
+	if (cur == pit) cur = nullptr;
 }
