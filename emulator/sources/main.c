@@ -143,7 +143,7 @@ int main(int argc, const char** argv) {
 	logger = init_emulator_logger();
 
 	if (argc > 2) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "Too many arguments. Expected only one argument: kernel ./*.so file");
+		emulator_log(true, LOG_SEVERITY_ERROR, "Too many arguments. Expected only one argument: kernel ./*.so or ./*.dll file");
 
 		free_emulator_logger(logger);
 
@@ -151,7 +151,7 @@ int main(int argc, const char** argv) {
 	}
 
 	else if (argc < 2) {
-		emulator_log(true, LOG_SEVERITY_ERROR, "Too few arguments. Expected only one argument: kernel ./*.so file");
+		emulator_log(true, LOG_SEVERITY_ERROR, "Too few arguments. Expected only one argument: kernel ./*.so or ./*.dll file");
 
 		free_emulator_logger(logger);
 

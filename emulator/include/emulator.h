@@ -162,7 +162,7 @@ void reset_emulator(emulator_t* emulator, int code);
 
 void main_loop(emulator_t* _emulator, multiboot_section_t* multiboot_section);
 
-kernel_t* emulator_load_kernel(const byte* filename);
+kernel_t* emulator_load_kernel(const char* filename);
 
 int emulator_unload_kernel(emulator_t* emulator);
 

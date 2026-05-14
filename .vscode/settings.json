@@ -1,9 +1,6 @@
 {
-	"C_Cpp.codeAnalysis.clangTidy.enabled": true,
-    "C_Cpp.intelliSenseEngine": "default",
-    "C_Cpp.diagnostics": "enabled",
-
-    "C_Cpp.codeAnalysis.clangTidy.args": [
-        "-Wno-pointer-sign"
-    ]
+    "C_Cpp.codeAnalysis.clangTidy.enabled": false,
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [],
+    "editor.inlayHints.enabled": "off"
 }

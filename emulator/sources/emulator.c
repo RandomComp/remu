@@ -28,8 +28,6 @@
 
 #include "utils.h"
 
-#include "main.h"
-
 #include "types.h"
 
 #include "math/math.h"
@@ -37,8 +35,6 @@
 #include <stdlib.h>
 
 #include <string.h>
-
-#include <signal.h>
 
 #include <pthread.h>
 
@@ -579,7 +575,7 @@ void main_loop(emulator_t* _emulator, multiboot_section_t* multiboot_section) {
 	#endif
 }
 
-kernel_t* emulator_load_kernel(const byte* filename) {
+kernel_t* emulator_load_kernel(const char* filename) {
 	emulator_log(true, LOG_SEVERITY_INFO, "Kernel \"%s\" loading...", filename);
 
 	void* os_handle = dlopen(filename, RTLD_NOW);

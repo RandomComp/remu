@@ -3,9 +3,9 @@
 *.so
 *.log
 *.out
+remu
 *.o
-test.asm
-kernel.bin
+*.bin
 repo_pushing_token
 .fuse_*
 old_show_info

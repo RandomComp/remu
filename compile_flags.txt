@@ -1,0 +1,14 @@
+-Wall
+-Wpadded
+-Werror=return-type
+-Wno-unused-parameter
+-Werror=uninitialized
+-Werror=implicit-function-declaration
+-Werror=address
+-Werror=type-limits
+-Werror=shadow
+-Werror=pointer-arith
+-Werror=cast-align
+-Werror=float-conversion
+-Werror=undef
+-Iemulator/include

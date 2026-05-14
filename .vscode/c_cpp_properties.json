@@ -2,17 +2,10 @@
 	"configurations": [
 		{
 			"name": "remu",
-			"includePath": ["${workspaceFolder}/**", "/usr/include/SDL2"],
-			"defines": [
-				"_GNU_SOURCE",
-				"__linux__"
-			],
+			"includePath": ["emulator/include/**/**", "/usr/include/SDL2"],
 			"compilerPath": "/usr/bin/gcc",
 			"cStandard": "c11",
-			"intelliSenseMode": "linux-gcc-x64",
-			"compilerArgs": [
-				"-Werror=implicit-function-declaration"
-			]
+			"intelliSenseMode": "linux-gcc-x64"
 		}
 	],
 	"version": 4
